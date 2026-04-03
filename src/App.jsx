@@ -1,734 +1,890 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  hasApiKey,
+  fetchTrending,
+  fetchUpcoming,
+  fetchMovieDetail,
+  searchMovies,
+  mapMovie,
+} from "./api/tmdb";
 
-const sections = [
-  { id: "overview", label: "Overview" },
-  { id: "imdb", label: "IMDb / TMDB" },
-  { id: "stubhub", label: "StubHub" },
-  { id: "entities", label: "Entity Mapping" },
-  { id: "moviedetail", label: "MovieDetail Entity" },
-  { id: "userdata", label: "User Data" },
-  { id: "gaps", label: "Gaps & Risks" },
+// ═══════════════════════════════════════════════════
+// FALLBACK DATA (used when no TMDB API key is set)
+// ═══════════════════════════════════════════════════
+
+const TMDB_IMG = "https://image.tmdb.org/t/p";
+
+const FALLBACK_CATALOG = [
+  {
+    id: "m-001", tmdb_id: 157336, imdb_id: "tt0816692", slug: "interstellar-2014",
+    title: "Interstellar", release_year: 2014, runtime_minutes: 169, content_rating: "PG-13",
+    tagline: "Mankind was born on Earth. It was never meant to die here.",
+    synopsis: "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.",
+    original_language: "en", origin_countries: ["US","GB"], is_international: false,
+    poster_url: `${TMDB_IMG}/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg`,
+    backdrop_url: `${TMDB_IMG}/w1280/xJHokMbljXjADYdit5fK1DVfjko.jpg`,
+    genres: [{name:"Sci-Fi",slug:"sci-fi"},{name:"Drama",slug:"drama"},{name:"Adventure",slug:"adventure"}],
+    directors: [{name:"Christopher Nolan",tmdb_person_id:525}],
+    cast: [{name:"Matthew McConaughey",character_name:"Cooper",cast_order:0},{name:"Anne Hathaway",character_name:"Brand",cast_order:1},{name:"Jessica Chastain",character_name:"Murph",cast_order:2}],
+    trailers: [{title:"Official Trailer",video_key:"zSWdZVtXT7E",video_type:"Trailer",is_primary:true}],
+    keywords: ["space","wormhole","nasa","black hole","time travel"],
+    imdb_rating: 8.7, rotten_tomatoes_score: 73, metacritic_score: 74,
+    box_office_worldwide: 701729206, budget: 165000000,
+    global_elo_score: 1952, global_rank: 1, comparison_count: 14832, win_rate: 0.78,
+    avg_user_rating: 9.2, user_rating_count: 3241, review_count: 47,
+    trending_score: 892, trending_rank: 3, is_highlighted: true,
+    watchlist_count: 1247, seen_count: 8934,
+  },
+  {
+    id: "m-002", tmdb_id: 496243, imdb_id: "tt6751668", slug: "parasite-2019",
+    title: "Parasite", original_title: "기생충",
+    release_year: 2019, runtime_minutes: 132, content_rating: "R",
+    synopsis: "Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.",
+    original_language: "ko", origin_countries: ["KR"], is_international: true,
+    poster_url: `${TMDB_IMG}/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg`,
+    backdrop_url: `${TMDB_IMG}/w1280/TU9NIjwzjoKPwQHoHshkFcQUCG.jpg`,
+    genres: [{name:"Thriller",slug:"thriller"},{name:"Drama",slug:"drama"},{name:"Comedy",slug:"comedy"}],
+    directors: [{name:"Bong Joon-ho",tmdb_person_id:21684}],
+    cast: [{name:"Song Kang-ho",character_name:"Ki-taek",cast_order:0},{name:"Choi Woo-shik",character_name:"Ki-woo",cast_order:1}],
+    trailers: [{title:"Official Trailer",video_key:"SEUXfv87Wpk",video_type:"Trailer",is_primary:true}],
+    keywords: ["class differences","wealth","dark comedy","seoul"],
+    imdb_rating: 8.5, rotten_tomatoes_score: 98, metacritic_score: 96,
+    box_office_worldwide: 266093946,
+    global_elo_score: 1845, global_rank: 3, comparison_count: 11204, win_rate: 0.74,
+    avg_user_rating: 9.0, user_rating_count: 2890, review_count: 62,
+    trending_score: 445, trending_rank: 8, is_highlighted: false,
+    watchlist_count: 932, seen_count: 6201,
+  },
+  {
+    id: "m-003", tmdb_id: 155, imdb_id: "tt0468569", slug: "the-dark-knight-2008",
+    title: "The Dark Knight", release_year: 2008, runtime_minutes: 152, content_rating: "PG-13",
+    synopsis: "Batman raises the stakes in his war on crime, facing the Joker, a criminal mastermind who plunges Gotham into anarchy.",
+    original_language: "en", origin_countries: ["US","GB"], is_international: false,
+    poster_url: `${TMDB_IMG}/w500/qJ2tW6WMUDux911BTUgMe1YRr.jpg`,
+    genres: [{name:"Action",slug:"action"},{name:"Crime",slug:"crime"},{name:"Drama",slug:"drama"}],
+    directors: [{name:"Christopher Nolan",tmdb_person_id:525}],
+    cast: [{name:"Christian Bale",character_name:"Batman",cast_order:0},{name:"Heath Ledger",character_name:"Joker",cast_order:1}],
+    trailers: [{title:"Official Trailer",video_key:"EXeTwQWrcwY",video_type:"Trailer",is_primary:true}],
+    imdb_rating: 9.0, global_elo_score: 1823, global_rank: 4,
+    avg_user_rating: 9.1, user_rating_count: 4100, trending_score: 320, trending_rank: 12,
+    watchlist_count: 890, seen_count: 9200,
+  },
+  {
+    id: "m-004", tmdb_id: 244786, slug: "whiplash-2014",
+    title: "Whiplash", release_year: 2014, runtime_minutes: 107, content_rating: "R",
+    synopsis: "A promising young drummer enrolls at a cut-throat music conservatory where his dreams of greatness are mentored by an instructor who will stop at nothing.",
+    original_language: "en", is_international: false,
+    poster_url: `${TMDB_IMG}/w500/oPxnRhyAEBhPIT5uXGb02JMbuz.jpg`,
+    genres: [{name:"Drama",slug:"drama"},{name:"Music",slug:"music"}],
+    directors: [{name:"Damien Chazelle",tmdb_person_id:136495}],
+    cast: [{name:"Miles Teller",character_name:"Andrew",cast_order:0},{name:"J.K. Simmons",character_name:"Fletcher",cast_order:1}],
+    imdb_rating: 8.5, global_elo_score: 1768, global_rank: 8,
+    avg_user_rating: 8.9, user_rating_count: 2100, trending_score: 210,
+    watchlist_count: 430, seen_count: 3800,
+  },
+  {
+    id: "m-005", tmdb_id: 614933, slug: "rrr-2022",
+    title: "RRR", release_year: 2022, runtime_minutes: 187,
+    synopsis: "A fictitious story about two legendary revolutionaries and their journey away from home before they began fighting for their country in the 1920s.",
+    original_language: "te", origin_countries: ["IN"], is_international: true,
+    poster_url: `${TMDB_IMG}/w500/nEufeZYpKOlqp3fkDJKVECVpfjn.jpg`,
+    genres: [{name:"Action",slug:"action"},{name:"Drama",slug:"drama"}],
+    directors: [{name:"S.S. Rajamouli",tmdb_person_id:84636}],
+    cast: [{name:"N.T. Rama Rao Jr.",character_name:"Bheem",cast_order:0},{name:"Ram Charan",character_name:"Ram",cast_order:1}],
+    imdb_rating: 7.8, global_elo_score: 1689, global_rank: 14,
+    avg_user_rating: 8.4, user_rating_count: 1600, trending_score: 180,
+    watchlist_count: 340, seen_count: 2900,
+  },
 ];
 
-const C = {
-  bg: "#0c0c0f",
-  surface: "#16161b",
-  card: "#1e1e25",
-  border: "#2a2a35",
-  text: "#e4e4ec",
-  dim: "#6e6e80",
-  accent: "#ff4d4d",
-  accentDim: "#ff4d4d22",
-  blue: "#3b82f6",
-  blueDim: "#3b82f622",
-  green: "#22c55e",
-  greenDim: "#22c55e22",
-  gold: "#f59e0b",
-  goldDim: "#f59e0b22",
-  purple: "#a855f7",
-  purpleDim: "#a855f722",
+const FALLBACK_UPCOMING = [
+  {
+    id: "u-001", title: "The Mummy", release_year: 2026, release_date: "2026-05-15",
+    days_until_release: 43, poster_url: `${TMDB_IMG}/w500/wTnV3PCVW5O92JMrFvvrRcV39RU.jpg`,
+    genres: [{name:"Horror",slug:"horror"}], directors: [{name:"Lee Cronin"}],
+    anticipation_score: 720, is_must_see: true, must_see_reason: "From the director of Evil Dead Rise",
+    watchlist_count: 342,
+  },
+  {
+    id: "u-002", title: "Werwulf", release_year: 2026, release_date: "2026-12-25",
+    days_until_release: 267,
+    genres: [{name:"Horror",slug:"horror"}], directors: [{name:"Robert Eggers"}],
+    anticipation_score: 890, is_must_see: true, must_see_reason: "Robert Eggers' werewolf epic",
+    watchlist_count: 512,
+  },
+];
+
+const FEED_ITEMS = [
+  { id:"f-001", type:"rating", user:"@maya", avatar:"M", action:"rated", movie_title:"Interstellar", movie_id:"m-001", rating:9.5, time:"2m", likes:12, liked:false },
+  { id:"f-002", type:"review", user:"@josh", avatar:"J", action:"reviewed", movie_title:"Parasite", movie_id:"m-002", preview:"Bong Joon-ho crafted something that transcends genre. The tonal shifts are masterful...", rating:9.0, time:"18m", likes:34, liked:false },
+  { id:"f-003", type:"ranking", user:"@lina", avatar:"L", action:"updated rankings", preview:"New #1: The Dark Knight → dethroned Interstellar", time:"1h", likes:8, liked:false },
+  { id:"f-004", type:"save", user:"@carlos", avatar:"C", action:"saved", movie_title:"RRR", movie_id:"m-005", time:"2h", likes:3, liked:false },
+  { id:"f-005", type:"streak", user:"@maya", avatar:"M", action:"hit a 12-week streak 🔥", time:"3h", likes:45, liked:false },
+];
+
+const FRIEND_USERS = [
+  { id:"u-maya", username:"maya", avatar:"M", followers:342, is_following:false },
+  { id:"u-josh", username:"josh", avatar:"J", followers:128, is_following:true },
+  { id:"u-lina", username:"lina", avatar:"L", followers:89, is_following:false },
+  { id:"u-carlos", username:"carlos", avatar:"C", followers:56, is_following:true },
+];
+
+const USER = {
+  username: "jasonk", current_streak_weeks: 7, longest_streak_weeks: 7,
+  rated_count: 89, review_count: 23, following: 34, followers: 128,
+  saved_movies: ["m-001", "m-002", "m-005"],
 };
 
-const Tag = ({ color, children }) => (
-  <span
-    style={{
-      display: "inline-block",
-      padding: "2px 8px",
-      borderRadius: 4,
-      fontSize: 10,
-      fontWeight: 700,
-      fontFamily: "'JetBrains Mono', monospace",
-      background: color === "red" ? C.accentDim : color === "blue" ? C.blueDim : color === "green" ? C.greenDim : color === "gold" ? C.goldDim : C.purpleDim,
-      color: color === "red" ? C.accent : color === "blue" ? C.blue : color === "green" ? C.green : color === "gold" ? C.gold : C.purple,
-      border: `1px solid ${color === "red" ? C.accent + "33" : color === "blue" ? C.blue + "33" : color === "green" ? C.green + "33" : color === "gold" ? C.gold + "33" : C.purple + "33"}`,
-    }}
-  >
-    {children}
-  </span>
-);
+// ═══════════════════════════════════════════════════
+// UI CONSTANTS
+// ═══════════════════════════════════════════════════
 
-const Field = ({ name, type, source, note }) => (
-  <div style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "4px 0", borderBottom: `1px solid ${C.border}`, fontSize: 12 }}>
-    <code style={{ color: C.accent, fontFamily: "'JetBrains Mono', monospace", minWidth: 200, fontSize: 11 }}>{name}</code>
-    <span style={{ color: C.dim, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, minWidth: 80 }}>{type}</span>
-    <Tag color={source === "TMDB" ? "blue" : source === "OMDb" ? "gold" : source === "StubHub" ? "purple" : source === "Rated" ? "red" : source === "Watchmode" ? "green" : source === "Stripe" ? "green" : "green"}>{source}</Tag>
-    {note && <span style={{ color: C.dim, fontSize: 11, flex: 1 }}>{note}</span>}
-  </div>
-);
-
-const Card = ({ title, tag, children }) => (
-  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
-    <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
-      <span style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>{title}</span>
-      {tag}
-    </div>
-    {children}
-  </div>
-);
-
-const P = ({ children }) => <p style={{ fontSize: 13, color: C.dim, lineHeight: 1.7, margin: "6px 0" }}>{children}</p>;
-const H2 = ({ children }) => <h2 style={{ fontSize: 18, fontWeight: 800, color: C.text, fontFamily: "'JetBrains Mono', monospace", margin: "24px 0 8px", letterSpacing: -0.5 }}>{children}</h2>;
-const H3 = ({ children }) => <h3 style={{ fontSize: 14, fontWeight: 700, color: C.accent, fontFamily: "'JetBrains Mono', monospace", margin: "16px 0 6px" }}>{children}</h3>;
-
-const Arrow = () => <span style={{ color: C.accent, margin: "0 4px" }}>→</span>;
-
-// ── SECTIONS ──
-
-const OverviewSection = () => (
-  <div>
-    <H2>Integration Architecture Overview</H2>
-    <P>
-      Rated pulls movie metadata from external APIs and builds its own ranking + marketplace layer on top.
-      There are three data domains with distinct ownership patterns.
-    </P>
-    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-      {[
-        { label: "Movie Catalog", source: "TMDB + IMDb", color: "blue", desc: "Metadata, cast, genres, ratings synced from external APIs. Rated caches locally but doesn't own." },
-        { label: "Rankings & Comparisons", source: "Rated (user-generated)", color: "red", desc: "All ELO scores, comparisons, watchlists, personal rankings. 100% Rated-owned, lives in PostgreSQL." },
-        { label: "Marketplace & Tickets", source: "Rated + StubHub hybrid", color: "purple", desc: "Listings, trades, transactions, escrow. Rated owns the marketplace; StubHub provides price signals & optional fulfillment." },
-      ].map((d, i) => (
-        <div key={i} style={{ flex: "1 1 280px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>{d.label}</span>
-            <Tag color={d.color}>{d.source}</Tag>
-          </div>
-          <P>{d.desc}</P>
-        </div>
-      ))}
-    </div>
-
-    <H3>Data Flow Summary</H3>
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.dim, lineHeight: 2 }}>
-      <div><Tag color="blue">TMDB API</Tag> <Arrow/> Enrichment Pipeline <Arrow/> <code style={{color:C.accent}}>MOVIE</code> + <code style={{color:C.accent}}>GENRE</code> + <code style={{color:C.accent}}>DIRECTOR</code> + <code style={{color:C.accent}}>ACTOR</code> tables</div>
-      <div><Tag color="gold">OMDb API</Tag> <Arrow/> Enrichment Pipeline <Arrow/> <code style={{color:C.accent}}>MOVIE.imdb_rating</code> + RT score + Metacritic + box office</div>
-      <div><Tag color="green">Watchmode API</Tag> <Arrow/> Streaming Service <Arrow/> <code style={{color:C.accent}}>MOVIE.streaming_sources</code> (future)</div>
-      <div><Tag color="purple">StubHub API</Tag> <Arrow/> Marketplace Service <Arrow/> price signals, event matching, optional listing sync</div>
-      <div><Tag color="red">User Actions</Tag> <Arrow/> Ranking Engine <Arrow/> <code style={{color:C.accent}}>COMPARISON</code> + <code style={{color:C.accent}}>ELO_SCORE</code> + <code style={{color:C.accent}}>WATCHLIST</code></div>
-      <div><Tag color="red">User Actions</Tag> <Arrow/> Marketplace Service <Arrow/> <code style={{color:C.accent}}>TICKET_LISTING</code> + <code style={{color:C.accent}}>TRADE_OFFER</code> + <code style={{color:C.accent}}>TRANSACTION</code></div>
-    </div>
-
-    <H3>Feed Priority</H3>
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, fontSize: 12, color: C.dim, lineHeight: 2 }}>
-      <div><strong style={{color:C.blue, fontFamily:"'JetBrains Mono', monospace"}}>1. TMDB API</strong> — primary feed: catalog, images, cast, trailers, genres (~90% of fields)</div>
-      <div><strong style={{color:C.gold, fontFamily:"'JetBrains Mono', monospace"}}>2. OMDb API</strong> — enrichment: IMDb rating, RT score, Metacritic, box office</div>
-      <div><strong style={{color:C.green, fontFamily:"'JetBrains Mono', monospace"}}>3. Watchmode API</strong> — future: streaming availability per region</div>
-      <div><strong style={{color:C.accent, fontFamily:"'JetBrains Mono', monospace"}}>4. Rated Internal</strong> — user-generated: ELO scores, reviews, streaks, trending</div>
-    </div>
-  </div>
-);
-
-const ImdbSection = () => (
-  <div>
-    <H2>IMDb & TMDB Integration</H2>
-
-    <Card title="TMDB — Primary Catalog Source" tag={<Tag color="blue">FREE API</Tag>}>
-      <P>
-        TMDB is the recommended primary source. It offers a free REST API with generous rate limits, returns
-        standardized JSON, and covers movies, TV, cast, crew, genres, posters, and trailers. Free for
-        non-commercial use; commercial licenses available.
-      </P>
-      <H3>What TMDB Gives You</H3>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="id" type="int" source="TMDB" note="TMDB movie ID — use as foreign key" />
-        <Field name="title" type="string" source="TMDB" note="Primary title + original_title" />
-        <Field name="release_date" type="date" source="TMDB" note="YYYY-MM-DD format" />
-        <Field name="genres" type="array" source="TMDB" note="[{id, name}] — maps to GENRE table" />
-        <Field name="runtime" type="int" source="TMDB" note="Minutes" />
-        <Field name="poster_path" type="string" source="TMDB" note="Append to image.tmdb.org CDN" />
-        <Field name="overview" type="string" source="TMDB" note="Synopsis / plot summary" />
-        <Field name="credits.cast" type="array" source="TMDB" note="Cast with character names → ACTOR table" />
-        <Field name="credits.crew" type="array" source="TMDB" note="Filter for job='Director' → DIRECTOR table" />
-        <Field name="vote_average" type="float" source="TMDB" note="Community rating (1-10)" />
-        <Field name="belongs_to_collection" type="object" source="TMDB" note="Franchise/collection → FRANCHISE table" />
-        <Field name="keywords" type="array" source="TMDB" note="Tag-based discovery (mood, theme)" />
-        <Field name="release_dates" type="array" source="TMDB" note="US certification (PG-13, R) + release type detection" />
-        <Field name="production_companies" type="array" source="TMDB" note="Detect streaming originals (Netflix, Disney+, etc.)" />
-        <Field name="origin_country" type="array" source="TMDB" note="ISO 3166-1 codes → international film detection" />
-      </div>
-      <H3>Key Endpoint</H3>
-      <div style={{ background: C.surface, borderRadius: 8, padding: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.blue }}>
-        GET /3/movie/{"{id}"}?append_to_response=credits,videos,keywords,images,release_dates
-      </div>
-      <P>
-        One call returns everything: details + cast + crew + keywords + images + release dates.
-        The append_to_response pattern avoids N+1 API calls.
-      </P>
-    </Card>
-
-    <Card title="OMDb — Enrichment Layer" tag={<Tag color="gold">FREE / PAID API</Tag>}>
-      <P>
-        OMDb (Open Movie Database) is a free REST API that aggregates IMDb ratings, Rotten Tomatoes scores,
-        and Metacritic scores. Free tier available; paid plans remove rate limits. Requires imdb_id from TMDB.
-      </P>
-      <H3>What OMDb Adds Beyond TMDB</H3>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="imdbRating" type="float" source="OMDb" note="IMDb rating (e.g. 8.7) — authoritative score" />
-        <Field name="imdbVotes" type="int" source="OMDb" note="Vote count (e.g. 2,100,000)" />
-        <Field name="Ratings[RT]" type="int" source="OMDb" note="Rotten Tomatoes score — parse '87%' → 87" />
-        <Field name="Metascore" type="int" source="OMDb" note="Metacritic score (e.g. 74)" />
-        <Field name="BoxOffice" type="int" source="OMDb" note="Domestic gross — parse '$188,020,017' → 188020017" />
-        <Field name="Rated" type="string" source="OMDb" note="MPAA content rating fallback (PG-13, R)" />
-      </div>
-      <H3>Access Pattern</H3>
-      <div style={{ background: C.surface, borderRadius: 8, padding: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.gold }}>
-        GET /?i={"{imdb_id}"}&plot=short&apikey={"{key}"}
-      </div>
-    </Card>
-
-    <Card title="IMDb Official API (Alternative)" tag={<Tag color="gold">PAID / AWS</Tag>}>
-      <P>
-        IMDb's official API is a GraphQL service available exclusively through AWS Data Exchange.
-        It requires an AWS account and a paid subscription. It's the gold standard for ratings
-        (1.6B+ votes) and box office data. OMDb is the practical free alternative for most use cases.
-      </P>
-    </Card>
-
-    <Card title="IMDb Free Datasets (Non-Commercial)" tag={<Tag color="green">FREE</Tag>}>
-      <P>
-        IMDb provides free TSV datasets (title.basics, title.ratings, name.basics) updated daily.
-        Usable for non-commercial purposes only with attribution. Good for bootstrapping your catalog
-        before paying for the full API.
-      </P>
-      <div style={{ background: C.surface, borderRadius: 8, padding: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.green }}>
-        datasets.imdbws.com → title.basics.tsv.gz, title.ratings.tsv.gz
-      </div>
-    </Card>
-  </div>
-);
-
-const StubhubSection = () => (
-  <div>
-    <H2>StubHub Integration</H2>
-
-    <Card title="StubHub API Overview" tag={<Tag color="purple">OAUTH2 / PAID</Tag>}>
-      <P>
-        StubHub's API connects to the world's largest ticket marketplace. It uses OAuth2 authentication,
-        HTTPS only, and returns HAL+JSON. The API covers four domains: Catalog (events/venues),
-        Inventory (seller listings), Sales (transactions), and Webhooks.
-      </P>
-      <P>
-        Access requires contacting StubHub directly — affiliates@stubhub.com for buyer-side
-        integrations or api.support@stubhub.com for seller-side. They're migrating to a new API
-        and prioritizing based on volume.
-      </P>
-    </Card>
-
-    <Card title="StubHub Seller Listing Schema" tag={<Tag color="purple">INVENTORY API</Tag>}>
-      <H3>Key Fields from StubHub's SellerListing Resource</H3>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="id" type="int64" source="StubHub" note="StubHub listing ID" />
-        <Field name="number_of_tickets" type="int32" source="StubHub" note="Available quantity" />
-        <Field name="ticket_price" type="Money" source="StubHub" note="{amount, currency_code}" />
-        <Field name="face_value" type="Money" source="StubHub" note="Printed price on ticket" />
-        <Field name="ticket_proceeds" type="Money" source="StubHub" note="What seller actually receives" />
-        <Field name="seating" type="object" source="StubHub" note="{section, row, seat_from, seat_to}" />
-        <Field name="ticket_type" type="string" source="StubHub" note="ETicket, Paper, etc." />
-        <Field name="split_type" type="string" source="StubHub" note="How tickets can be split for sale" />
-        <Field name="in_hand_at" type="datetime" source="StubHub" note="When seller has physical tickets" />
-        <Field name="barcodes" type="array" source="StubHub" note="Barcode info for verification" />
-        <Field name="instant_delivery" type="bool" source="StubHub" note="Immediate transfer capability" />
-        <Field name="external_id" type="string" source="StubHub" note="YOUR system's ID — key for sync" />
-        <Field name="published" type="bool" source="StubHub" note="Live on marketplace or not" />
-        <Field name="created_at" type="datetime" source="StubHub" note="Listing creation time" />
-        <Field name="expires_at" type="datetime" source="StubHub" note="Auto-unpublish date" />
-      </div>
-    </Card>
-
-    <Card title="StubHub Verification & Trust Model" tag={<Tag color="green">SAFETY</Tag>}>
-      <P>
-        StubHub verifies ticket authenticity through a multi-step process: sellers confirm ownership
-        via payment receipts and identity checks. Tickets are cross-referenced with venue databases.
-        Buyers get a protection policy — disputed tickets can be refunded within 72 hours.
-      </P>
-      <H3>Rated Can Mirror This</H3>
-      <div style={{ fontSize: 12, color: C.dim, lineHeight: 1.8 }}>
-        <div>• <strong style={{color:C.text}}>Pro Verification</strong> — our KYC gate maps to StubHub's seller ID verification</div>
-        <div>• <strong style={{color:C.text}}>QR/Barcode validation</strong> — StubHub's barcode field maps to our qr_hash</div>
-        <div>• <strong style={{color:C.text}}>Escrow</strong> — StubHub holds payment until delivery confirmed; our TRANSACTION.escrow_status does the same</div>
-        <div>• <strong style={{color:C.text}}>Anti-fraud</strong> — StubHub's duplicate detection maps to our Ticket Verification service</div>
-      </div>
-    </Card>
-
-    <Card title="Integration Strategy Options" tag={<Tag color="red">DECISION</Tag>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {[
-          {
-            title: "Option A: Price Signal Only",
-            desc: "Use StubHub API read-only to show comparable ticket prices. Don't sync listings. Lowest friction — just Catalog API.",
-            effort: "Low",
-            risk: "Low"
-          },
-          {
-            title: "Option B: Dual-List",
-            desc: "When a Rated user lists a ticket, optionally cross-post to StubHub via Inventory API. Use external_id to keep in sync.",
-            effort: "Medium",
-            risk: "Medium — requires seller API access approval"
-          },
-          {
-            title: "Option C: Full Marketplace Bridge",
-            desc: "Pull StubHub inventory into Rated's browse experience. Handle purchase via StubHub's checkout. Rated adds trade/swap on top.",
-            effort: "High",
-            risk: "High — StubHub may not approve; volume requirements"
-          },
-        ].map((opt, i) => (
-          <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 12 }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>{opt.title}</span>
-              <Tag color={opt.effort === "Low" ? "green" : opt.effort === "Medium" ? "gold" : "red"}>{opt.effort} effort</Tag>
-            </div>
-            <P>{opt.desc}</P>
-            <span style={{ fontSize: 10, color: C.dim, fontFamily: "'JetBrains Mono', monospace" }}>Risk: {opt.risk}</span>
-          </div>
-        ))}
-      </div>
-    </Card>
-  </div>
-);
-
-const EntityMappingSection = () => (
-  <div>
-    <H2>Entity ↔ Source Mapping</H2>
-    <P>Where each field in the Rated ERD comes from — and what's yours vs. external.</P>
-
-    <Card title="MOVIE table" tag={<Tag color="blue">TMDB + OMDb</Tag>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="id" type="uuid" source="Rated" note="Internal PK — generated by Rated" />
-        <Field name="tmdb_id" type="string" source="TMDB" note="TMDB movie ID — use for API lookups" />
-        <Field name="imdb_id" type="string" source="TMDB" note="TMDB returns this in movie details" />
-        <Field name="title" type="string" source="TMDB" note="From /movie/{id}" />
-        <Field name="release_year" type="int" source="TMDB" note="Extracted from release_date" />
-        <Field name="poster_url" type="string" source="TMDB" note="image.tmdb.org/t/p/w500 + poster_path" />
-        <Field name="synopsis" type="string" source="TMDB" note="overview field" />
-        <Field name="runtime_minutes" type="int" source="TMDB" note="runtime field" />
-        <Field name="global_elo_score" type="float" source="Rated" note="Computed by YOUR ranking engine" />
-        <Field name="imdb_rating" type="float" source="OMDb" note="From OMDb API imdbRating field" />
-        <Field name="rotten_tomatoes_score" type="int" source="OMDb" note="Parsed from Ratings array" />
-        <Field name="metacritic_score" type="int" source="OMDb" note="Metascore field" />
-        <Field name="box_office_domestic" type="int" source="OMDb" note="BoxOffice field (domestic)" />
-        <Field name="box_office_worldwide" type="int" source="TMDB" note="revenue field (often worldwide)" />
-      </div>
-    </Card>
-
-    <Card title="GENRE / DIRECTOR / ACTOR / FRANCHISE" tag={<Tag color="blue">TMDB</Tag>}>
-      <P>
-        All populated from TMDB's /movie/{"{id}"}?append_to_response=credits,keywords response.
-        TMDB provides genre IDs, person IDs (tmdb_person_id), and collection objects (franchises).
-        Rated stores these locally and uses them as dimensions for the ranking engine.
-      </P>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="GENRE.name" type="string" source="TMDB" note="From genres array" />
-        <Field name="DIRECTOR.tmdb_person_id" type="string" source="TMDB" note="From credits.crew where job='Director'" />
-        <Field name="ACTOR.tmdb_person_id" type="string" source="TMDB" note="From credits.cast" />
-        <Field name="FRANCHISE.name" type="string" source="TMDB" note="From belongs_to_collection" />
-      </div>
-    </Card>
-
-    <Card title="RANKING_CATEGORY / ELO_SCORE / COMPARISON" tag={<Tag color="red">100% Rated</Tag>}>
-      <P>
-        Entirely Rated-owned. No external dependency. Categories are derived from TMDB metadata
-        (genre names, director names, decades) but the ranking data itself is generated by user comparisons.
-      </P>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="RANKING_CATEGORY.category_value" type="string" source="Rated" note="Derived from TMDB genres/directors but stored locally" />
-        <Field name="ELO_SCORE.score" type="float" source="Rated" note="Computed by ELO/Glicko engine" />
-        <Field name="COMPARISON.winner_movie_id" type="uuid" source="Rated" note="User choice — core IP" />
-      </div>
-    </Card>
-
-    <Card title="TICKET_LISTING" tag={<Tag color="purple">Rated + StubHub</Tag>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="id" type="uuid" source="Rated" note="Internal PK" />
-        <Field name="seller_id" type="uuid" source="Rated" note="FK to USER (must be Pro verified)" />
-        <Field name="movie_id" type="uuid" source="Rated" note="FK to MOVIE" />
-        <Field name="listing_type" type="enum" source="Rated" note="sell | trade — StubHub doesn't have trade" />
-        <Field name="asking_price" type="decimal" source="Rated" note="Set by seller" />
-        <Field name="venue" type="string" source="Rated" note="User-entered (could match StubHub venue)" />
-        <Field name="seat_info" type="string" source="Rated" note="Maps to StubHub's seating.section + row" />
-        <Field name="showtime" type="datetime" source="Rated" note="Maps to StubHub event startDate" />
-        <Field name="ticket_image_url" type="string" source="Rated" note="S3 — user uploads photo" />
-        <Field name="qr_hash" type="string" source="Rated" note="Our verification — maps to StubHub barcodes" />
-        <Field name="stubhub_listing_id" type="int64" source="StubHub" note="Add column — for cross-posted listings (Option B)" />
-        <Field name="face_value" type="decimal" source="StubHub" note="Add column — from StubHub's face_value field" />
-      </div>
-    </Card>
-
-    <Card title="TRANSACTION" tag={<Tag color="red">Rated + Stripe</Tag>}>
-      <P>
-        Rated owns the transaction layer. StubHub is not involved in P2P trades.
-        Stripe handles escrow (Connect + payment intents with manual capture).
-      </P>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="escrow_status" type="enum" source="Rated" note="held → released → refunded. Stripe handles the money." />
-        <Field name="stripe_payment_id" type="string" source="Stripe" note="Payment intent ID for audit trail" />
-      </div>
-    </Card>
-  </div>
-);
-
-const MovieDetailSection = () => (
-  <div>
-    <H2>MovieDetail Entity Design</H2>
-    <P>
-      The MovieDetail entity is the single source of truth for a movie in Rated. It is constructed
-      from external feeds and enriched incrementally as data becomes available. Ingestion is idempotent —
-      safe to re-run for refreshes.
-    </P>
-
-    <Card title="Identity & Basic Metadata" tag={<Tag color="blue">TMDB</Tag>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="id" type="uuid" source="Rated" note="Internal PK — generated on first ingest" />
-        <Field name="tmdb_id" type="int" source="TMDB" note="Foreign key for all TMDB lookups" />
-        <Field name="imdb_id" type="string?" source="TMDB" note="imdb_id field from /movie/{id} response" />
-        <Field name="slug" type="string" source="Rated" note='slugify(title + release_year) → "interstellar-2014"' />
-        <Field name="title" type="string" source="TMDB" note="Localized title" />
-        <Field name="original_title" type="string?" source="TMDB" note='e.g. "기생충" for Parasite' />
-        <Field name="release_year" type="int" source="TMDB" note='Extracted from "2014-11-05" → 2014' />
-        <Field name="release_date" type="date?" source="TMDB" note="Full precision release date" />
-        <Field name="runtime_minutes" type="int?" source="TMDB" note="runtime field (minutes)" />
-        <Field name="content_rating" type="string?" source="TMDB" note="US certification from release_dates — fallback: OMDb" />
-        <Field name="tagline" type="string?" source="TMDB" note='"Mankind was born on Earth..."' />
-        <Field name="synopsis" type="string?" source="TMDB" note="overview field" />
-        <Field name="status" type="string" source="TMDB" note='"Released" | "Post Production" | "Upcoming"' />
-      </div>
-    </Card>
-
-    <Card title="International & Origin" tag={<Tag color="blue">TMDB</Tag>}>
-      <P>
-        Derived fields enable international film discovery, filtering, and category rankings (e.g. "Best Korean Films").
-      </P>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="original_language" type="string" source="TMDB" note='ISO 639-1: "en", "ko", "hi", "ja", "fr"' />
-        <Field name="original_language_name" type="string?" source="Rated" note='"ko" → "Korean", "hi" → "Hindi"' />
-        <Field name="origin_countries" type="string[]" source="TMDB" note='ISO 3166-1: ["KR"], ["IN"], ["US","GB"]' />
-        <Field name="origin_country_names" type="string[]?" source="Rated" note='["KR"] → ["South Korea"]' />
-        <Field name="is_international" type="bool" source="Rated" note="original_language != 'en'" />
-      </div>
-    </Card>
-
-    <Card title="Release Type & Streaming Detection" tag={<Tag color="blue">TMDB</Tag>}>
-      <P>
-        Release type is derived from TMDB's release_dates array. Streaming original detection checks
-        production_companies against known platform IDs.
-      </P>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="release_type" type="string" source="Rated" note='"theatrical" | "streaming" | "hybrid" | "limited" | "unknown"' />
-        <Field name="streaming_original_platform" type="string?" source="Rated" note='e.g. "Netflix" if Netflix in production_companies' />
-        <Field name="is_streaming_original" type="bool" source="Rated" note="streaming_original_platform is not None" />
-      </div>
-      <H3>Known Streaming Company IDs (TMDB)</H3>
-      <div style={{ background: C.surface, borderRadius: 8, padding: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.dim, lineHeight: 1.9 }}>
-        {[["Netflix", "33520"], ["Amazon", "7429"], ["Apple TV+", "7461"], ["Disney+", "2739"], ["HBO/Max", "3268"], ["Hulu", "3153"], ["Peacock", "77882"], ["Paramount+", "174252"]].map(([name, id]) => (
-          <div key={id}><span style={{color:C.blue, minWidth: 120, display:"inline-block"}}>{name}</span> company_id: <span style={{color:C.accent}}>{id}</span></div>
-        ))}
-      </div>
-    </Card>
-
-    <Card title="Images" tag={<Tag color="blue">TMDB CDN</Tag>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="poster_url" type="string?" source="TMDB" note="image.tmdb.org/t/p/w500 + poster_path" />
-        <Field name="poster_url_hd" type="string?" source="TMDB" note="image.tmdb.org/t/p/original + poster_path" />
-        <Field name="backdrop_url" type="string?" source="TMDB" note="image.tmdb.org/t/p/w1280 + backdrop_path" />
-        <Field name="backdrop_url_hd" type="string?" source="TMDB" note="image.tmdb.org/t/p/original + backdrop_path" />
-        <Field name="logo_url" type="string?" source="TMDB" note="/movie/{id}/images → logos[0]" />
-      </div>
-    </Card>
-
-    <Card title="Cast & Crew" tag={<Tag color="blue">TMDB credits</Tag>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="directors" type="Person[]" source="TMDB" note="crew where job == 'Director'" />
-        <Field name="writers" type="Person[]" source="TMDB" note="crew where department == 'Writing'" />
-        <Field name="cast" type="CastMember[]" source="TMDB" note="Top 15 cast members with character_name + cast_order" />
-        <Field name="Person.tmdb_person_id" type="int" source="TMDB" note="Person ID for cross-referencing" />
-        <Field name="Person.photo_url" type="string?" source="TMDB" note="image.tmdb.org/t/p/w185 + profile_path" />
-      </div>
-    </Card>
-
-    <Card title="Trailers & Videos" tag={<Tag color="blue">TMDB videos</Tag>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="video_key" type="string" source="TMDB" note="YouTube video ID" />
-        <Field name="video_url" type="string" source="Rated" note="https://youtube.com/watch?v={key}" />
-        <Field name="thumbnail_url" type="string" source="Rated" note="https://img.youtube.com/vi/{key}/hqdefault.jpg" />
-        <Field name="video_type" type="string" source="TMDB" note='"Trailer" | "Teaser" | "Featurette" | "Clip"' />
-        <Field name="is_primary" type="bool" source="Rated" note="type=Trailer AND official=true, pick latest" />
-      </div>
-    </Card>
-
-    <Card title="External Ratings" tag={<Tag color="gold">OMDb enrichment</Tag>}>
-      <P>Called after TMDB ingest. Requires imdb_id. Falls back gracefully if OMDb unavailable.</P>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="imdb_rating" type="float?" source="OMDb" note="imdbRating (e.g. 8.7)" />
-        <Field name="imdb_votes" type="int?" source="OMDb" note="imdbVotes (e.g. 2,100,000)" />
-        <Field name="rotten_tomatoes_score" type="int?" source="OMDb" note='Ratings[source="Rotten Tomatoes"].Value → parse "87%" → 87' />
-        <Field name="metacritic_score" type="int?" source="OMDb" note="Metascore (e.g. 74)" />
-        <Field name="box_office_domestic" type="int?" source="OMDb" note='BoxOffice → parse "$188,020,017" → 188020017' />
-        <Field name="box_office_worldwide" type="int?" source="TMDB" note="revenue field fallback (often worldwide)" />
-        <Field name="budget" type="int?" source="TMDB" note="budget field (USD)" />
-      </div>
-    </Card>
-
-    <Card title="Streaming Availability" tag={<Tag color="green">Watchmode (future)</Tag>}>
-      <P>
-        Streaming sources populated via Watchmode API. Requires mapping tmdb_id to watchmode_id
-        via Watchmode's title_id_map.csv. Refresh daily — availability changes frequently.
-      </P>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="platform_name" type="string" source="Watchmode" note='"Netflix", "Hulu", etc.' />
-        <Field name="source_type" type="string" source="Watchmode" note='"sub" | "rent" | "buy" | "free"' />
-        <Field name="price" type="float?" source="Watchmode" note="For rent/buy tiers" />
-        <Field name="url" type="string" source="Watchmode" note="Web URL to watch" />
-        <Field name="deep_link" type="string?" source="Watchmode" note="iOS/Android deep link" />
-        <Field name="region" type="string" source="Watchmode" note='"US", "GB", etc.' />
-        <Field name="last_checked_at" type="datetime" source="Rated" note="When we last verified availability" />
-      </div>
-    </Card>
-
-    <Card title="Rated Internal (User-Generated)" tag={<Tag color="red">100% Rated</Tag>}>
-      <P>
-        Never from external feeds. Computed by Rated's ranking engine and user actions.
-        These fields represent Rated's core intellectual property.
-      </P>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Field name="global_elo_score" type="float" source="Rated" note="ELO/Glicko engine across all comparisons — default 1500.0" />
-        <Field name="category_elo_scores" type="dict" source="Rated" note="{genre_slug: score, director_slug: score, ...}" />
-        <Field name="global_rank" type="int?" source="Rated" note="Position in overall leaderboard" />
-        <Field name="genre_ranks" type="dict" source="Rated" note='{"sci-fi": 1, "drama": 4, ...}' />
-        <Field name="comparison_count" type="int" source="Rated" note="Total times movie appeared in a comparison battle" />
-        <Field name="win_rate" type="float" source="Rated" note="wins / comparison_count" />
-        <Field name="avg_user_rating" type="float?" source="Rated" note="Mean of all USER_RATING.rating for this movie" />
-        <Field name="trending_score" type="float" source="Rated" note="weighted(recent_ratings, reviews, page_views, recency)" />
-        <Field name="trending_rank" type="int?" source="Rated" note="Position in trending list" />
-        <Field name="is_highlighted" type="bool" source="Rated" note="Editorial flag or auto-triggered by trending threshold" />
-        <Field name="watchlist_count" type="int" source="Rated" note="How many users have this on their watchlist" />
-        <Field name="seen_count" type="int" source="Rated" note="How many users marked this as seen" />
-      </div>
-    </Card>
-
-    <Card title="Sync & Refresh Strategy" tag={<Tag color="green">OPERATIONS</Tag>}>
-      <div style={{ fontSize: 12, color: C.dim, lineHeight: 2, fontFamily: "'JetBrains Mono', monospace" }}>
-        <div><span style={{color:C.blue}}>TMDB refresh:</span> every 7 days (1 day for new releases within 90 days)</div>
-        <div><span style={{color:C.gold}}>OMDb refresh:</span> every 14 days (ratings shift slowly)</div>
-        <div><span style={{color:C.green}}>Watchmode refresh:</span> every 1 day (streaming avail changes daily)</div>
-      </div>
-      <H3>Full Ingest Pipeline</H3>
-      <div style={{ background: C.surface, borderRadius: 8, padding: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.dim, lineHeight: 2 }}>
-        <div><span style={{color:C.blue}}>ingest_from_tmdb(tmdb_id)</span> → hydrate ~90% of fields</div>
-        <div><span style={{color:C.gold}}>enrich_from_omdb(movie)</span> → patch ratings + box office</div>
-        <div><span style={{color:C.green}}>enrich_from_watchmode(movie)</span> → streaming sources (future)</div>
-        <div style={{color:C.accent, marginTop:4}}>All steps are idempotent — safe to re-run for refreshes.</div>
-      </div>
-    </Card>
-  </div>
-);
-
-const UserDataSection = () => (
-  <div>
-    <H2>Where Does User Data Sit?</H2>
-
-    <Card title="Data Ownership Matrix" tag={<Tag color="red">CRITICAL</Tag>}>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>
-          <thead>
-            <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-              {["Data Type", "Owner", "Storage", "User Can Delete?", "Shared With"].map(h => (
-                <th key={h} style={{ textAlign: "left", padding: "8px 6px", color: C.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              ["Account / Profile", "Rated", "PostgreSQL", "Yes (GDPR/CCPA)", "Nobody"],
-              ["Rankings & Comparisons", "Rated", "PostgreSQL", "Yes", "Public leaderboard (anon)"],
-              ["Watchlists", "Rated", "PostgreSQL", "Yes", "Friends (if enabled)"],
-              ["Movie Metadata", "TMDB / OMDb", "Rated cache (PG)", "N/A — not user data", "Public"],
-              ["Ticket Listings", "Rated", "PostgreSQL + S3", "Yes (delist)", "Marketplace buyers"],
-              ["Transaction History", "Rated + Stripe", "PG + Stripe", "Partial (legal hold)", "Buyer + Seller"],
-              ["Payment Info", "Stripe", "Stripe vault", "Via Stripe dashboard", "Stripe only"],
-              ["KYC / Identity", "ID Provider", "ID provider vault", "Via provider", "Rated gets pass/fail only"],
-              ["Ticket Images / QR", "Rated", "S3 (encrypted)", "Yes (on delist)", "Buyer on purchase"],
-            ].map((row, i) => (
-              <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
-                {row.map((cell, j) => (
-                  <td key={j} style={{ padding: "8px 6px", color: j === 0 ? C.text : C.dim, fontWeight: j === 0 ? 600 : 400, fontSize: 11 }}>
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-
-    <Card title="IMDb / OMDb Data Policy" tag={<Tag color="gold">IMDb / OMDb</Tag>}>
-      <P>
-        IMDb (owned by Amazon) collects names, emails, browsing activity, and uses cookies for ad targeting.
-        For Rated's purposes: you never share YOUR users' data with IMDb. You only consume their movie catalog
-        data via OMDb API. IMDb user ratings are IMDb's property — display with attribution only.
-      </P>
-      <H3>Key Restrictions</H3>
-      <div style={{ fontSize: 12, color: C.dim, lineHeight: 1.8 }}>
-        <div>• Free datasets are <strong style={{color:C.accent}}>non-commercial only</strong> — must attribute "Information courtesy of IMDb"</div>
-        <div>• Cannot scrape imdb.com — data must come from official datasets or OMDb API</div>
-        <div>• Cannot create a competing database of movie info from their data</div>
-        <div>• TMDB has no such restriction for commercial use (just attribute + get a license)</div>
-      </div>
-    </Card>
-
-    <Card title="StubHub User Data Policy" tag={<Tag color="purple">StubHub</Tag>}>
-      <P>
-        StubHub verifies sellers via government ID and payment receipts. When Rated integrates with StubHub,
-        the data flows are one-directional: Rated pushes listing data TO StubHub and receives confirmation back.
-        StubHub does not share buyer PII with seller apps.
-      </P>
-      <H3>What Rated Gets vs. Doesn't Get</H3>
-      <div style={{ fontSize: 12, color: C.dim, lineHeight: 1.8 }}>
-        <div>✅ Event catalog (public events, venues, dates)</div>
-        <div>✅ Listing data for YOUR authenticated seller's listings</div>
-        <div>✅ Sale confirmations + payment status</div>
-        <div>✅ E-ticket upload/download for YOUR listings</div>
-        <div>❌ Other sellers' inventory details (limited to search results)</div>
-        <div>❌ Buyer PII (StubHub protects this)</div>
-        <div>❌ StubHub's internal pricing algorithms</div>
-      </div>
-    </Card>
-
-    <Card title="Rated's Own User Data" tag={<Tag color="red">RATED</Tag>}>
-      <P>
-        Rated's core value proposition IS the user-generated ranking data. This is 100% owned by Rated
-        and represents the company's primary intellectual property.
-      </P>
-      <H3>What Makes Rated's Data Unique</H3>
-      <div style={{ fontSize: 12, color: C.dim, lineHeight: 1.8 }}>
-        <div>• <strong style={{color:C.text}}>Pairwise comparisons</strong> — no other platform does head-to-head movie ELO</div>
-        <div>• <strong style={{color:C.text}}>Category-scoped rankings</strong> — "best Nolan film" or "best 90s horror" computed from real votes</div>
-        <div>• <strong style={{color:C.text}}>Taste profiles</strong> — each user's personal ranking graph is a recommendation engine input</div>
-        <div>• <strong style={{color:C.text}}>Trade/swap graph</strong> — ticket trading patterns show demand signals no one else has</div>
-      </div>
-    </Card>
-  </div>
-);
-
-const GapsSection = () => (
-  <div>
-    <H2>Gaps, Risks & Schema Changes</H2>
-
-    <Card title="Schema Additions Needed" tag={<Tag color="red">ACTION</Tag>}>
-      <P>Based on this research, the current ERD needs these additions:</P>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, color: C.dim, lineHeight: 1.8 }}>
-        {[
-          { table: "MOVIE", field: "imdb_id (string, UK)", why: "Cross-reference with OMDb API and IMDb datasets" },
-          { table: "MOVIE", field: "imdb_rating (float)", why: "Display authoritative rating alongside Rated ELO" },
-          { table: "MOVIE", field: "rotten_tomatoes_score (int)", why: "OMDb enrichment — popular aggregator score" },
-          { table: "MOVIE", field: "metacritic_score (int)", why: "OMDb enrichment — critical consensus" },
-          { table: "MOVIE", field: "content_rating (string)", why: "MPAA rating (PG-13, R) — from TMDB or OMDb" },
-          { table: "MOVIE", field: "box_office_domestic (int)", why: "From OMDb BoxOffice field" },
-          { table: "MOVIE", field: "box_office_worldwide (int)", why: "From TMDB revenue field" },
-          { table: "MOVIE", field: "original_language (string)", why: "ISO 639-1 — enables international film categories" },
-          { table: "MOVIE", field: "is_international (bool)", why: "Derived flag for discovery filtering" },
-          { table: "MOVIE", field: "release_type (enum)", why: "theatrical/streaming/hybrid — from TMDB release_dates" },
-          { table: "MOVIE", field: "streaming_original_platform (string?)", why: "Netflix/Disney+ original detection" },
-          { table: "TICKET_LISTING", field: "stubhub_listing_id (int64, nullable)", why: "Cross-post sync key if using Option B" },
-          { table: "TICKET_LISTING", field: "face_value (decimal)", why: "StubHub tracks this — useful for price transparency" },
-          { table: "TICKET_LISTING", field: "ticket_type (enum)", why: "e-ticket vs paper vs mobile — StubHub differentiates" },
-          { table: "TICKET_LISTING", field: "barcode (string, nullable)", why: "For barcode-based verification (maps to StubHub)" },
-          { table: "USER", field: "trust_score (float)", why: "Computed from transaction history — displayed on marketplace" },
-        ].map((item, i) => (
-          <div key={i} style={{ display: "flex", gap: 8, padding: "4px 0", borderBottom: `1px solid ${C.border}` }}>
-            <code style={{ color: C.accent, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, minWidth: 130 }}>{item.table}</code>
-            <code style={{ color: C.blue, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, minWidth: 240 }}>{item.field}</code>
-            <span>{item.why}</span>
-          </div>
-        ))}
-      </div>
-    </Card>
-
-    <Card title="Integration Risks" tag={<Tag color="gold">WARNING</Tag>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {[
-          { risk: "IMDb Official API Cost", severity: "Medium", detail: "AWS Data Exchange pricing is opaque. Use OMDb API (free tier) + TMDB; add IMDb official API later if needed." },
-          { risk: "StubHub API Access", severity: "High", detail: "StubHub is migrating APIs and prioritizing by volume. A startup may wait weeks/months for approval." },
-          { risk: "IMDb Non-Commercial License", severity: "High", detail: "Free IMDb datasets cannot be used commercially. If Rated monetizes, must use TMDB + OMDb (commercial) instead." },
-          { risk: "TMDB Rate Limits", severity: "Low", detail: "TMDB is generous but still rate-limited. Cache aggressively — movie metadata rarely changes." },
-          { risk: "OMDb Data Freshness", severity: "Low", detail: "OMDb aggregates from IMDb but may lag by days. For real-time ratings, use IMDb official API." },
-          { risk: "StubHub TOS Changes", severity: "Medium", detail: "StubHub has changed APIs before (v1 → v2 deprecation). Don't build core features that break if StubHub access is revoked." },
-          { risk: "Ticket Fraud Liability", severity: "High", detail: "If Rated facilitates a bad ticket sale, you're liable. Escrow + verification is non-negotiable before marketplace launch." },
-        ].map((item, i) => (
-          <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 10 }}>
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>{item.risk}</span>
-              <Tag color={item.severity === "Low" ? "green" : item.severity === "Medium" ? "gold" : "red"}>{item.severity}</Tag>
-            </div>
-            <P>{item.detail}</P>
-          </div>
-        ))}
-      </div>
-    </Card>
-
-    <Card title="Recommended Launch Order" tag={<Tag color="green">STRATEGY</Tag>}>
-      <div style={{ fontSize: 12, color: C.dim, lineHeight: 2.2 }}>
-        <div><strong style={{color:C.green}}>Phase 1:</strong> TMDB API only → populate MOVIE + GENRE + DIRECTOR + ACTOR + FRANCHISE</div>
-        <div><strong style={{color:C.green}}>Phase 2:</strong> Ranking engine (100% Rated-owned) → COMPARISON + ELO_SCORE + WATCHLIST</div>
-        <div><strong style={{color:C.gold}}>Phase 3:</strong> OMDb enrichment → imdb_rating, RT score, Metacritic, box_office on MOVIE</div>
-        <div><strong style={{color:C.gold}}>Phase 4:</strong> Marketplace with Stripe escrow → TICKET_LISTING + TRADE_OFFER + TRANSACTION</div>
-        <div><strong style={{color:C.accent}}>Phase 5:</strong> Watchmode → streaming availability per region</div>
-        <div><strong style={{color:C.accent}}>Phase 6:</strong> StubHub integration (Option A → B) → price signals, optional cross-posting</div>
-      </div>
-    </Card>
-  </div>
-);
-
-const sectionComponents = {
-  overview: OverviewSection,
-  imdb: ImdbSection,
-  stubhub: StubhubSection,
-  entities: EntityMappingSection,
-  moviedetail: MovieDetailSection,
-  userdata: UserDataSection,
-  gaps: GapsSection,
+const W = {
+  bg: "#0f0f13", card: "#1a1a22", card2: "#222230", border: "#2c2c3a",
+  text: "#ededf2", dim: "#6e6e82",
+  accent: "#ff3b3b", accentDim: "#ff3b3b28",
+  green: "#10b981", greenDim: "#10b98122",
+  gold: "#eab308", goldDim: "#eab30822",
+  blue: "#3b82f6", blueDim: "#3b82f622",
+  purple: "#a855f7", purpleDim: "#a855f722",
+  orange: "#f97316", orangeDim: "#f9731622",
 };
 
-export default function RatedIntegrationResearch() {
-  const [active, setActive] = useState("overview");
-  const Section = sectionComponents[active];
+// ═══════════════════════════════════════════════════
+// SHARED COMPONENTS
+// ═══════════════════════════════════════════════════
+
+const Phone = ({ children, label }) => (
+  <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:8 }}>
+    <div style={{ width:320,height:640,background:W.bg,borderRadius:36,border:`2.5px solid ${W.border}`,overflow:"hidden",position:"relative",boxShadow:`0 24px 80px rgba(0,0,0,0.6)` }}>
+      <div style={{ position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:100,height:26,background:"#000",borderRadius:"0 0 18px 18px",zIndex:10 }} />
+      <div style={{ height:44,display:"flex",alignItems:"flex-end",justifyContent:"space-between",padding:"0 24px 4px",fontSize:11,color:W.dim,fontFamily:"monospace" }}>
+        <span style={{fontWeight:600}}>9:41</span><span>●●● ▐██▌</span>
+      </div>
+      <div style={{ height:596,overflowY:"auto",overflowX:"hidden" }}>{children}</div>
+    </div>
+    <span style={{ fontSize:10,color:W.dim,fontFamily:"monospace",letterSpacing:1.5,textTransform:"uppercase",fontWeight:600 }}>{label}</span>
+  </div>
+);
+
+const Poster = ({ url, w = 85, h = 120, radius = 10 }) => (
+  <div style={{ width:w,height:h,borderRadius:radius,overflow:"hidden",flexShrink:0,background:W.card,border:`1px solid ${W.border}` }}>
+    {url ? <img src={url} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }} onError={e => { e.target.style.display="none"; }} /> : null}
+  </div>
+);
+
+const Btn = ({ children, accent, full, small, onClick }) => (
+  <div onClick={onClick} style={{ background:accent?W.accent:"transparent",border:accent?"none":`1px solid ${W.border}`,color:accent?"#fff":W.dim,borderRadius:12,padding:small?"6px 14px":"12px 20px",fontSize:small?10:12,fontWeight:700,textAlign:"center",width:full?"100%":"auto",fontFamily:"monospace",letterSpacing:0.5,cursor:"pointer" }}>{children}</div>
+);
+
+const NavBar = ({ active, onNav }) => (
+  <div style={{ position:"absolute",bottom:0,left:0,right:0,height:58,background:"#09090c",borderTop:`1px solid ${W.border}`,display:"flex",alignItems:"center",justifyContent:"space-around",zIndex:5 }}>
+    {[{key:"home",icon:"⌂",label:"Home"},{key:"upcoming",icon:"◈",label:"Soon"},{key:"streak",icon:"🔥",label:"Streak"},{key:"search",icon:"⌕",label:"Search"},{key:"profile",icon:"●",label:"Me"}].map(item => (
+      <div key={item.key} onClick={() => onNav(item.key)} style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:2,cursor:"pointer" }}>
+        <span style={{ fontSize:18,color:item.key===active?W.accent:W.dim }}>{item.icon}</span>
+        <span style={{ fontSize:8,fontFamily:"monospace",color:item.key===active?W.accent:W.dim,fontWeight:item.key===active?700:400 }}>{item.label}</span>
+      </div>
+    ))}
+  </div>
+);
+
+const Badge = ({ color, children }) => (
+  <span style={{ padding:"2px 7px",borderRadius:4,fontSize:7,fontWeight:900,fontFamily:"monospace",letterSpacing:0.5,background:color==="red"?W.accentDim:color==="gold"?W.goldDim:color==="green"?W.greenDim:color==="blue"?W.blueDim:color==="orange"?W.orangeDim:W.purpleDim,color:color==="red"?W.accent:color==="gold"?W.gold:color==="green"?W.green:color==="blue"?W.blue:color==="orange"?W.orange:W.purple,border:`1px solid ${color==="red"?W.accent+"33":color==="gold"?W.gold+"33":color==="green"?W.green+"33":color==="blue"?W.blue+"33":color==="orange"?W.orange+"33":W.purple+"33"}` }}>{children}</span>
+);
+
+const LoadingDots = () => {
+  const [dots, setDots] = useState("");
+  useEffect(() => { const i = setInterval(() => setDots(d => d.length >= 3 ? "" : d + "."), 400); return () => clearInterval(i); }, []);
+  return <span style={{ color:W.dim,fontFamily:"monospace",fontSize:11 }}>Loading{dots}</span>;
+};
+
+const Spinner = () => (
+  <div style={{ height:"100%",display:"flex",alignItems:"center",justifyContent:"center" }}><LoadingDots /></div>
+);
+
+// ═══════════════════════════════════════════════════
+// API KEY BANNER (shown inside phone when no key)
+// ═══════════════════════════════════════════════════
+
+const ApiKeyBanner = () => (
+  <div style={{ margin:"6px 10px",padding:"8px 12px",background:W.orangeDim,border:`1px solid ${W.orange}44`,borderRadius:10 }}>
+    <div style={{ fontSize:9,fontWeight:800,color:W.orange,fontFamily:"monospace",letterSpacing:0.5 }}>⚡ DEMO MODE — SAMPLE DATA</div>
+    <div style={{ fontSize:8,color:W.dim,fontFamily:"monospace",lineHeight:1.5,marginTop:3 }}>
+      Set VITE_TMDB_API_KEY to load live data
+    </div>
+  </div>
+);
+
+// ═══════════════════════════════════════════════════
+// SCREENS
+// ═══════════════════════════════════════════════════
+
+const HomeScreen = ({ onNav, onSelectMovie }) => {
+  const [catalog, setCatalog] = useState(null);
+  const [feedLikes, setFeedLikes] = useState({});
+  const [following, setFollowing] = useState(() => {
+    const m = {}; FRIEND_USERS.forEach(u => { m[u.id] = u.is_following; }); return m;
+  });
+  const [savedMovies, setSavedMovies] = useState(new Set(USER.saved_movies));
+  const liveData = hasApiKey();
+
+  useEffect(() => {
+    if (liveData) {
+      fetchTrending().then(data => setCatalog(data || FALLBACK_CATALOG));
+    } else {
+      setTimeout(() => setCatalog(FALLBACK_CATALOG), 500);
+    }
+  }, [liveData]);
+
+  const toggleLike = (id) => setFeedLikes(p => ({ ...p, [id]: !p[id] }));
+  const toggleFollow = (uid) => setFollowing(p => ({ ...p, [uid]: !p[uid] }));
+  const toggleSave = (mid) => setSavedMovies(p => { const n = new Set(p); n.has(mid) ? n.delete(mid) : n.add(mid); return n; });
+
+  if (!catalog) return <Spinner />;
+
+  const highlights = catalog.filter(m => m.is_highlighted || (m.trending_rank && m.trending_rank <= 5) || m.tmdb_popularity > 80).slice(0, 4);
+  const showHighlights = highlights.length > 0 ? highlights : catalog.slice(0, 4);
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px 60px" }}>
-        <div style={{ marginBottom: 20, borderBottom: `1px solid ${C.border}`, paddingBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-            <span style={{ fontSize: 24, fontWeight: 900, color: C.accent, fontFamily: "'JetBrains Mono', monospace", letterSpacing: -1 }}>RATED</span>
-            <span style={{ fontSize: 13, color: C.dim, fontFamily: "'JetBrains Mono', monospace" }}>Integration Research</span>
+    <div style={{ position:"relative",height:"100%" }}>
+      {!liveData && <ApiKeyBanner />}
+      <div style={{ padding:"4px 22px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+        <div style={{ fontSize:18,fontWeight:900,color:W.accent,fontFamily:"monospace",letterSpacing:-1 }}>RATED</div>
+        <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+          {liveData && <Badge color="green">LIVE</Badge>}
+          <div style={{ display:"flex",gap:3,alignItems:"center",background:W.goldDim,border:`1px solid ${W.gold}44`,borderRadius:20,padding:"3px 10px" }}>
+            <span style={{ fontSize:12 }}>🔥</span>
+            <span style={{ fontSize:10,fontWeight:800,color:W.gold,fontFamily:"monospace" }}>{USER.current_streak_weeks}</span>
           </div>
-          <p style={{ fontSize: 12, color: C.dim, margin: "6px 0 0", lineHeight: 1.6 }}>
-            IMDb · TMDB · OMDb · StubHub · MovieDetail Entity — data ownership, API schemas, entity mapping, and where user data sits
-          </p>
         </div>
-
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 20, position: "sticky", top: 0, background: C.bg, padding: "8px 0", zIndex: 10 }}>
-          {sections.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setActive(s.id)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 8,
-                fontSize: 11,
-                fontWeight: 600,
-                fontFamily: "'JetBrains Mono', monospace",
-                cursor: "pointer",
-                border: `1px solid ${active === s.id ? C.accent : C.border}`,
-                background: active === s.id ? C.accentDim : "transparent",
-                color: active === s.id ? C.accent : C.dim,
-                transition: "all 0.15s",
-              }}
-            >
-              {s.label}
-            </button>
+      </div>
+      <div style={{ padding:"8px 22px 70px",display:"flex",flexDirection:"column",gap:12 }}>
+        <div style={{ fontSize:11,fontWeight:700,color:W.dim,fontFamily:"monospace",letterSpacing:1.5 }}>
+          {liveData ? "🔴 TRENDING THIS WEEK" : "HIGHLIGHTS"}
+        </div>
+        <div style={{ display:"flex",gap:10,overflowX:"auto",paddingBottom:4 }}>
+          {showHighlights.map((m, idx) => (
+            <div key={m.id} style={{ flexShrink:0,width:105 }}>
+              <div style={{ position:"relative",cursor:"pointer" }} onClick={() => onSelectMovie(m)}>
+                <Poster url={m.poster_url} w={105} h={148} radius={12} />
+                {idx < 3 && (
+                  <div style={{ position:"absolute",top:6,left:6,background:W.accent,color:"#fff",fontSize:7,fontWeight:900,padding:"2px 6px",borderRadius:4,fontFamily:"monospace" }}>#{idx + 1}</div>
+                )}
+                {m.is_international && (
+                  <div style={{ position:"absolute",top:6,right:6,background:W.purpleDim,border:`1px solid ${W.purple}44`,borderRadius:4,padding:"1px 4px",fontSize:7,fontWeight:700,color:W.purple,fontFamily:"monospace" }}>
+                    {m.original_language?.toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:5 }}>
+                <div style={{ minWidth:0,flex:1 }}>
+                  <div style={{ fontSize:10,fontWeight:700,color:W.text,fontFamily:"monospace",lineHeight:1.2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{m.title}</div>
+                  <div style={{ fontSize:9,color:W.dim,fontFamily:"monospace" }}>{m.release_year}</div>
+                </div>
+                <div onClick={(e) => { e.stopPropagation(); toggleSave(m.id); }} style={{ cursor:"pointer",fontSize:14,flexShrink:0,marginLeft:4 }}>
+                  {savedMovies.has(m.id) ? <span style={{color:W.blue}}>◆</span> : <span style={{color:W.dim}}>◇</span>}
+                </div>
+              </div>
+            </div>
           ))}
         </div>
 
-        <Section />
+        <div style={{ fontSize:11,fontWeight:700,color:W.dim,fontFamily:"monospace",letterSpacing:1.5 }}>ACTIVITY</div>
+        {FEED_ITEMS.map(item => {
+          const isLiked = feedLikes[item.id] ?? item.liked;
+          const likeCount = (item.likes || 0) + (feedLikes[item.id] && !item.liked ? 1 : 0) - (!feedLikes[item.id] && item.liked ? 1 : 0);
+          const friendUser = FRIEND_USERS.find(u => `@${u.username}` === item.user);
+          const isFollowing = friendUser ? following[friendUser.id] : false;
+          return (
+            <div key={item.id} style={{ background:W.card,border:`1px solid ${W.border}`,borderRadius:14,padding:12 }}>
+              <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
+                <div style={{ width:30,height:30,borderRadius:"50%",background:W.border,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:W.text,fontFamily:"monospace",flexShrink:0 }}>{item.avatar}</div>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                    <span style={{ fontSize:11,fontWeight:700,color:W.accent,fontFamily:"monospace" }}>{item.user}</span>
+                    {friendUser && (
+                      <div onClick={() => toggleFollow(friendUser.id)} style={{ cursor:"pointer",padding:"1px 8px",borderRadius:10,fontSize:8,fontWeight:700,fontFamily:"monospace",background:isFollowing?W.accentDim:"transparent",border:`1px solid ${isFollowing?W.accent:W.border}`,color:isFollowing?W.accent:W.dim }}>
+                        {isFollowing ? "FOLLOWING" : "+ FOLLOW"}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ fontSize:9,color:W.dim,fontFamily:"monospace" }}>{item.time} ago</div>
+                </div>
+              </div>
+              <div style={{ fontSize:11,color:W.text,fontFamily:"monospace",lineHeight:1.5,marginBottom:6 }}>
+                {item.type === "rating" && <span>{item.action} <span style={{color:W.gold,fontWeight:700}}>{item.movie_title}</span> <span style={{color:W.gold}}>★ {item.rating}/10</span></span>}
+                {item.type === "review" && <div><span>{item.action} <span style={{color:W.gold,fontWeight:700}}>{item.movie_title}</span> <span style={{color:W.gold}}>★ {item.rating}/10</span></span><div style={{ fontSize:10,color:W.dim,marginTop:4,fontStyle:"italic",lineHeight:1.5 }}>"{item.preview?.slice(0, 100)}..."</div></div>}
+                {item.type === "ranking" && <div><span>{item.action}</span><div style={{ fontSize:10,color:W.dim,marginTop:2 }}>{item.preview}</div></div>}
+                {item.type === "save" && <span>saved <span style={{color:W.blue,fontWeight:700}}>{item.movie_title}</span> to watch later 🎬</span>}
+                {item.type === "streak" && <span>{item.action}</span>}
+              </div>
+              <div style={{ display:"flex",gap:14,alignItems:"center",paddingTop:6,borderTop:`1px solid ${W.border}` }}>
+                <div onClick={() => toggleLike(item.id)} style={{ display:"flex",alignItems:"center",gap:4,cursor:"pointer" }}>
+                  <span style={{ fontSize:14,color:isLiked?W.accent:W.dim }}>{isLiked ? "♥" : "♡"}</span>
+                  <span style={{ fontSize:10,color:isLiked?W.accent:W.dim,fontFamily:"monospace",fontWeight:isLiked?700:400 }}>{likeCount}</span>
+                </div>
+                <div style={{ display:"flex",alignItems:"center",gap:4,cursor:"pointer" }}>
+                  <span style={{ fontSize:12,color:W.dim }}>💬</span>
+                  <span style={{ fontSize:10,color:W.dim,fontFamily:"monospace" }}>Reply</span>
+                </div>
+                {item.movie_id && (
+                  <div onClick={() => toggleSave(item.movie_id)} style={{ display:"flex",alignItems:"center",gap:4,cursor:"pointer",marginLeft:"auto" }}>
+                    <span style={{ fontSize:13,color:savedMovies.has(item.movie_id)?W.blue:W.dim }}>{savedMovies.has(item.movie_id) ? "◆" : "◇"}</span>
+                    <span style={{ fontSize:10,color:savedMovies.has(item.movie_id)?W.blue:W.dim,fontFamily:"monospace",fontWeight:savedMovies.has(item.movie_id)?700:400 }}>{savedMovies.has(item.movie_id) ? "Saved" : "Save"}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {savedMovies.size > 0 && (
+          <>
+            <div style={{ fontSize:11,fontWeight:700,color:W.dim,fontFamily:"monospace",letterSpacing:1.5 }}>YOUR SAVED · {savedMovies.size} FILMS</div>
+            <div style={{ display:"flex",gap:8,overflowX:"auto" }}>
+              {catalog.filter(m => savedMovies.has(m.id)).map(m => (
+                <div key={m.id} style={{ flexShrink:0,cursor:"pointer",position:"relative" }} onClick={() => onSelectMovie(m)}>
+                  <Poster url={m.poster_url} w={60} h={84} radius={8} />
+                  <div style={{ position:"absolute",top:3,right:3,width:14,height:14,background:W.blue,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#fff" }}>◆</div>
+                  <div style={{ fontSize:8,color:W.dim,fontFamily:"monospace",marginTop:2,textAlign:"center",maxWidth:60,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{m.title}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
+      <NavBar active="home" onNav={onNav} />
+    </div>
+  );
+};
+
+const MovieDetailScreen = ({ movie, onBack }) => {
+  const [detail, setDetail] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const liveData = hasApiKey();
+
+  useEffect(() => {
+    if (!movie) return;
+    setSaved(USER.saved_movies.includes(movie.id));
+    setDetail(null);
+    if (liveData && movie.tmdb_id) {
+      fetchMovieDetail(movie.tmdb_id).then(d => setDetail(d || movie));
+    } else {
+      setTimeout(() => setDetail(movie), 300);
+    }
+  }, [movie?.id, liveData]);
+
+  if (!movie) return null;
+  if (!detail) return <Spinner />;
+
+  const m = detail;
+  const primaryTrailer = m.trailers?.find(t => t.is_primary) || m.trailers?.[0];
+
+  return (
+    <div style={{ position:"relative",height:"100%" }}>
+      <div style={{ position:"relative",height:180,background:`linear-gradient(180deg, #1a1a28, ${W.bg})`,overflow:"hidden" }}>
+        {m.backdrop_url && <img src={m.backdrop_url} alt="" style={{ width:"100%",height:"100%",objectFit:"cover",opacity:0.3 }} onError={e=>{e.target.style.display="none"}} />}
+        <div style={{ position:"absolute",top:10,left:16,fontSize:11,color:W.dim,fontFamily:"monospace",cursor:"pointer" }} onClick={onBack}>← Back</div>
+        {primaryTrailer && (
+          <a href={`https://youtube.com/watch?v=${primaryTrailer.video_key}`} target="_blank" rel="noreferrer" style={{ textDecoration:"none",position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:4 }}>
+            <div style={{ width:44,height:44,background:`${W.accent}cc`,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#fff",boxShadow:`0 0 20px ${W.accent}44` }}>▶</div>
+            <span style={{ fontSize:9,color:"#fff",fontFamily:"monospace",fontWeight:600,textShadow:"0 1px 6px rgba(0,0,0,0.8)" }}>PLAY TRAILER</span>
+          </a>
+        )}
+        <div style={{ position:"absolute",bottom:-40,left:22 }}><Poster url={m.poster_url} w={72} h={100} radius={10} /></div>
+      </div>
+
+      <div style={{ padding:"48px 22px 20px",display:"flex",flexDirection:"column",gap:8 }}>
+        <div>
+          <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
+            <span style={{ fontSize:18,fontWeight:900,color:W.text,fontFamily:"monospace",letterSpacing:-0.5 }}>{m.title}</span>
+            {m.is_international && <Badge color="purple">{m.original_language?.toUpperCase()}</Badge>}
+            {liveData && <Badge color="green">LIVE</Badge>}
+          </div>
+          {m.original_title && m.original_title !== m.title && (
+            <div style={{ fontSize:10,color:W.dim,fontFamily:"monospace",fontStyle:"italic" }}>{m.original_title}</div>
+          )}
+          <div style={{ fontSize:10,color:W.dim,fontFamily:"monospace",marginTop:3 }}>
+            {m.release_year} · {m.directors?.[0]?.name} · {m.runtime_minutes ? `${Math.floor(m.runtime_minutes/60)}h ${m.runtime_minutes%60}m` : ""} · {m.content_rating || "NR"}
+          </div>
+        </div>
+
+        <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+          {m.global_rank && <div style={{ background:W.accentDim,border:`1px solid ${W.accent}33`,borderRadius:10,padding:"6px 12px",textAlign:"center" }}><div style={{ fontSize:16,fontWeight:900,color:W.accent,fontFamily:"monospace" }}>#{m.global_rank}</div><div style={{ fontSize:7,color:W.dim,fontFamily:"monospace" }}>RATED</div></div>}
+          {m.imdb_rating && <div style={{ background:W.goldDim,border:`1px solid ${W.gold}33`,borderRadius:10,padding:"6px 12px",textAlign:"center" }}><div style={{ fontSize:16,fontWeight:900,color:W.gold,fontFamily:"monospace" }}>{m.imdb_rating}</div><div style={{ fontSize:7,color:W.dim,fontFamily:"monospace" }}>IMDb</div></div>}
+          {m.avg_user_rating && !m.imdb_rating && <div style={{ background:W.goldDim,border:`1px solid ${W.gold}33`,borderRadius:10,padding:"6px 12px",textAlign:"center" }}><div style={{ fontSize:16,fontWeight:900,color:W.gold,fontFamily:"monospace" }}>{m.avg_user_rating?.toFixed(1)}</div><div style={{ fontSize:7,color:W.dim,fontFamily:"monospace" }}>TMDB</div></div>}
+          {m.rotten_tomatoes_score && <div style={{ background:W.greenDim,border:`1px solid ${W.green}33`,borderRadius:10,padding:"6px 12px",textAlign:"center" }}><div style={{ fontSize:16,fontWeight:900,color:W.green,fontFamily:"monospace" }}>{m.rotten_tomatoes_score}%</div><div style={{ fontSize:7,color:W.dim,fontFamily:"monospace" }}>RT</div></div>}
+          <div style={{ background:W.blueDim,border:`1px solid ${W.blue}33`,borderRadius:10,padding:"6px 12px",textAlign:"center",flex:1 }}><div style={{ fontSize:16,fontWeight:900,color:W.blue,fontFamily:"monospace" }}>{m.global_elo_score}</div><div style={{ fontSize:7,color:W.dim,fontFamily:"monospace" }}>ELO</div></div>
+        </div>
+
+        <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
+          {m.genres?.map(g => <span key={g.slug||g.name} style={{ padding:"3px 10px",borderRadius:16,fontSize:9,fontFamily:"monospace",fontWeight:600,background:W.card,border:`1px solid ${W.border}`,color:W.dim }}>{g.name}</span>)}
+        </div>
+
+        {m.synopsis && (
+          <div style={{ fontSize:11,color:W.dim,fontFamily:"monospace",lineHeight:1.6 }}>
+            {m.synopsis.slice(0, 200)}{m.synopsis.length > 200 && <span style={{ color:W.accent,fontWeight:600 }}> read more</span>}
+          </div>
+        )}
+
+        {m.tagline && (
+          <div style={{ fontSize:10,color:W.accent,fontFamily:"monospace",fontStyle:"italic",borderLeft:`2px solid ${W.accent}`,paddingLeft:8 }}>"{m.tagline}"</div>
+        )}
+
+        <div style={{ display:"flex",gap:6 }}>
+          <div style={{ flex:1 }}><Btn accent full small>★ RATE</Btn></div>
+          <div style={{ flex:1 }} onClick={() => setSaved(!saved)}>
+            <div style={{ background:saved?W.blueDim:"transparent",border:`1px solid ${saved?W.blue:W.border}`,color:saved?W.blue:W.dim,borderRadius:12,padding:"6px 14px",fontSize:10,fontWeight:700,textAlign:"center",fontFamily:"monospace",cursor:"pointer" }}>
+              {saved ? "◆ SAVED" : "◇ SAVE"}
+            </div>
+          </div>
+          <div style={{ flex:1 }}><Btn full small>✎ REVIEW</Btn></div>
+        </div>
+
+        {m.cast && m.cast.length > 0 && (
+          <>
+            <div style={{ fontSize:10,fontWeight:700,color:W.dim,fontFamily:"monospace",letterSpacing:1,marginTop:4 }}>CAST</div>
+            <div style={{ display:"flex",gap:10,overflowX:"auto" }}>
+              {m.cast.slice(0, 5).map((c, i) => (
+                <div key={i} style={{ textAlign:"center",flexShrink:0 }}>
+                  {c.photo_url ? (
+                    <img src={c.photo_url} alt={c.name} style={{ width:40,height:40,borderRadius:"50%",objectFit:"cover",border:`1px solid ${W.border}`,display:"block",margin:"0 auto 3px" }} onError={e => { e.target.style.display="none"; }} />
+                  ) : (
+                    <div style={{ width:40,height:40,borderRadius:"50%",background:W.card,border:`1px solid ${W.border}`,margin:"0 auto 3px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14 }}>👤</div>
+                  )}
+                  <div style={{ fontSize:9,fontWeight:700,color:W.text,fontFamily:"monospace",maxWidth:60,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{c.name.split(" ").pop()}</div>
+                  <div style={{ fontSize:8,color:W.dim,fontFamily:"monospace" }}>{c.character_name}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {m.trailers && m.trailers.length > 0 && (
+          <>
+            <div style={{ fontSize:10,fontWeight:700,color:W.dim,fontFamily:"monospace",letterSpacing:1,marginTop:4 }}>TRAILERS</div>
+            <div style={{ display:"flex",gap:8,overflowX:"auto" }}>
+              {m.trailers.slice(0, 4).map((t, i) => (
+                <a key={i} href={`https://youtube.com/watch?v=${t.video_key}`} target="_blank" rel="noreferrer" style={{ textDecoration:"none",position:"relative",flexShrink:0 }}>
+                  <div style={{ width:140,height:78,borderRadius:10,overflow:"hidden",background:`linear-gradient(135deg,#1c1c2c,#2a2a3a)` }}>
+                    <img src={`https://img.youtube.com/vi/${t.video_key}/hqdefault.jpg`} alt="" style={{ width:"100%",height:"100%",objectFit:"cover",opacity:0.7 }} onError={e=>{e.target.style.display="none"}} />
+                  </div>
+                  <div style={{ position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:22,height:22,background:`${W.accent}cc`,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#fff" }}>▶</div>
+                  <div style={{ fontSize:9,color:W.dim,fontFamily:"monospace",marginTop:3,maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{t.title}</div>
+                </a>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div style={{ display:"flex",gap:8,marginTop:4 }}>
+          {[
+            {n:m.user_rating_count||0,l:"Ratings"},{n:m.review_count||0,l:"Reviews"},{n:m.watchlist_count||0,l:"Watchlisted"},{n:m.seen_count||0,l:"Seen"}
+          ].map((s,i) => (
+            <div key={i} style={{ flex:1,textAlign:"center",background:W.card,borderRadius:8,padding:"6px 4px",border:`1px solid ${W.border}` }}>
+              <div style={{ fontSize:13,fontWeight:800,color:W.text,fontFamily:"monospace" }}>{s.n > 999 ? `${(s.n/1000).toFixed(1)}k` : s.n}</div>
+              <div style={{ fontSize:7,color:W.dim,fontFamily:"monospace" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+
+        {m.keywords && m.keywords.length > 0 && (
+          <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:2 }}>
+            {m.keywords.slice(0, 8).map(k => <span key={k} style={{ padding:"2px 8px",borderRadius:10,fontSize:8,fontFamily:"monospace",background:W.card,border:`1px solid ${W.border}`,color:W.dim }}>#{k}</span>)}
+          </div>
+        )}
+
+        {(m.box_office_worldwide || m.budget) && (
+          <div style={{ display:"flex",gap:8,marginTop:4,fontSize:9,fontFamily:"monospace",color:W.dim }}>
+            {m.budget > 0 && <span>💰 Budget: <span style={{color:W.text}}>${(m.budget/1e6).toFixed(0)}M</span></span>}
+            {m.box_office_worldwide > 0 && <span>🎬 WW Gross: <span style={{color:W.green}}>${(m.box_office_worldwide/1e6).toFixed(0)}M</span></span>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const UpcomingScreen = ({ onNav }) => {
+  const [upcoming, setUpcoming] = useState(null);
+  const [filter, setFilter] = useState("All");
+  const liveData = hasApiKey();
+
+  useEffect(() => {
+    if (liveData) {
+      fetchUpcoming().then(data => setUpcoming(data?.length ? data : FALLBACK_UPCOMING));
+    } else {
+      setTimeout(() => setUpcoming(FALLBACK_UPCOMING), 400);
+    }
+  }, [liveData]);
+
+  if (!upcoming) return (
+    <div style={{ position:"relative",height:"100%" }}>
+      <div style={{ padding:"8px 22px 6px",fontSize:13,fontWeight:800,color:W.text,fontFamily:"monospace" }}>◈ UPCOMING · MUST SEE</div>
+      <Spinner />
+      <NavBar active="upcoming" onNav={onNav} />
+    </div>
+  );
+
+  const genres = ["All", ...new Set(upcoming.flatMap(u => u.genres?.map(g => g.name) || []))].slice(0, 5);
+  const filtered = filter === "All" ? upcoming : upcoming.filter(u => u.genres?.some(g => g.name === filter));
+
+  return (
+    <div style={{ position:"relative",height:"100%" }}>
+      <div style={{ padding:"8px 22px 4px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+        <span style={{ fontSize:13,fontWeight:800,color:W.text,fontFamily:"monospace" }}>◈ UPCOMING · MUST SEE</span>
+        {liveData && <Badge color="green">LIVE</Badge>}
+      </div>
+      {!liveData && <ApiKeyBanner />}
+      <div style={{ display:"flex",gap:6,padding:"0 22px 8px",overflowX:"auto" }}>
+        {genres.map((t,i) => (
+          <span key={t} onClick={() => setFilter(t)} style={{ cursor:"pointer",padding:"4px 12px",borderRadius:16,fontSize:9,fontFamily:"monospace",fontWeight:600,flexShrink:0,background:filter===t?W.accentDim:W.card,border:`1px solid ${filter===t?W.accent:W.border}`,color:filter===t?W.accent:W.dim }}>{t}</span>
+        ))}
+      </div>
+      <div style={{ padding:"0 22px 70px",display:"flex",flexDirection:"column",gap:10 }}>
+        {filtered.sort((a,b) => (a.days_until_release||999) - (b.days_until_release||999)).map(u => (
+          <div key={u.id} style={{ background:W.card,border:`1px solid ${u.is_must_see?W.accent+"33":W.border}`,borderRadius:14,padding:14 }}>
+            <div style={{ display:"flex",gap:12 }}>
+              <Poster url={u.poster_url} w={56} h={78} radius={8} />
+              <div style={{ flex:1 }}>
+                <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
+                  <span style={{ fontSize:13,fontWeight:800,color:W.text,fontFamily:"monospace" }}>{u.title}</span>
+                  {u.is_must_see && <Badge color="red">MUST SEE</Badge>}
+                </div>
+                <div style={{ fontSize:9,color:W.dim,fontFamily:"monospace",marginTop:2 }}>{u.directors?.[0]?.name} · {u.genres?.slice(0,2).map(g=>g.name).join(", ")}</div>
+                {u.must_see_reason && <div style={{ fontSize:10,color:W.gold,fontFamily:"monospace",marginTop:4,lineHeight:1.4 }}>{u.must_see_reason.slice(0,80)}</div>}
+                <div style={{ display:"flex",gap:10,marginTop:6 }}>
+                  <div style={{ fontSize:10,color:W.dim,fontFamily:"monospace" }}>📅 {u.release_date}</div>
+                  {u.days_until_release != null && <div style={{ fontSize:10,color:u.days_until_release < 30 ? W.accent : W.dim,fontFamily:"monospace",fontWeight:700 }}>{u.days_until_release}d away</div>}
+                </div>
+                <div style={{ display:"flex",gap:8,marginTop:6,fontSize:9,color:W.dim,fontFamily:"monospace" }}>
+                  <span>👀 {u.watchlist_count} watching</span>
+                  {u.tmdb_popularity && <span>📊 {Math.round(u.tmdb_popularity)} pop</span>}
+                </div>
+              </div>
+            </div>
+            <div style={{ display:"flex",gap:8,marginTop:10 }}>
+              <div style={{ flex:1 }}><Btn accent full small>+ WATCHLIST</Btn></div>
+              <div style={{ flex:1 }}><Btn full small>🔔 NOTIFY ME</Btn></div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <NavBar active="upcoming" onNav={onNav} />
+    </div>
+  );
+};
+
+const SearchScreen = ({ onNav, onSelectMovie }) => {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customTitle, setCustomTitle] = useState("");
+  const liveData = hasApiKey();
+
+  useEffect(() => {
+    if (query.length < 2) { setResults([]); return; }
+    const timeout = setTimeout(async () => {
+      setSearching(true);
+      if (liveData) {
+        const data = await searchMovies(query);
+        setResults(data || FALLBACK_CATALOG.filter(m => m.title.toLowerCase().includes(query.toLowerCase())));
+      } else {
+        setResults(FALLBACK_CATALOG.filter(m => m.title.toLowerCase().includes(query.toLowerCase())));
+      }
+      setSearching(false);
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [query, liveData]);
+
+  const noResults = query.length > 2 && results.length === 0 && !searching;
+
+  return (
+    <div style={{ position:"relative",height:"100%" }}>
+      <div style={{ padding:"8px 22px 6px" }}>
+        <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:6 }}>
+          {liveData && <Badge color="green">TMDB LIVE</Badge>}
+        </div>
+        <input value={query} onChange={e => { setQuery(e.target.value); setShowCustomForm(false); }}
+          placeholder="⌕ Search movies, directors..."
+          style={{ width:"100%",background:W.card,border:`1px solid ${W.border}`,borderRadius:12,padding:"11px 16px",fontSize:12,color:W.text,fontFamily:"monospace",outline:"none",boxSizing:"border-box" }}
+        />
+      </div>
+
+      <div style={{ padding:"0 22px 70px" }}>
+        {searching && <div style={{ textAlign:"center",padding:"12px 0" }}><LoadingDots /></div>}
+
+        {results.map(m => (
+          <div key={m.id} onClick={() => onSelectMovie(m)} style={{ display:"flex",gap:10,alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${W.border}`,cursor:"pointer" }}>
+            <Poster url={m.poster_url} w={36} h={50} radius={6} />
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:12,fontWeight:700,color:W.text,fontFamily:"monospace" }}>{m.title}</div>
+              <div style={{ fontSize:9,color:W.dim,fontFamily:"monospace" }}>{m.release_year}{m.directors?.[0]?.name ? ` · ${m.directors[0].name}` : ""} {m.is_international ? `· 🌏 ${m.original_language}` : ""}</div>
+            </div>
+            {m.avg_user_rating && <div style={{ fontSize:10,fontWeight:800,color:W.gold,fontFamily:"monospace" }}>★{m.avg_user_rating?.toFixed(1)}</div>}
+          </div>
+        ))}
+
+        {noResults && !showCustomForm && (
+          <div style={{ textAlign:"center",padding:"24px 0" }}>
+            <div style={{ fontSize:24,marginBottom:8 }}>🔍</div>
+            <div style={{ fontSize:12,fontWeight:700,color:W.text,fontFamily:"monospace" }}>No results for "{query}"</div>
+            <div style={{ fontSize:10,color:W.dim,fontFamily:"monospace",marginTop:4,lineHeight:1.5 }}>Can't find it? Add it to your personal rankings.</div>
+            <div style={{ marginTop:12 }} onClick={() => { setShowCustomForm(true); setCustomTitle(query); }}><Btn accent>+ ADD TO MY LIST</Btn></div>
+            <div style={{ fontSize:8,color:W.dim,fontFamily:"monospace",marginTop:6 }}>Private to your profile only</div>
+          </div>
+        )}
+
+        {showCustomForm && (
+          <div style={{ padding:"12px 0",display:"flex",flexDirection:"column",gap:10 }}>
+            <div style={{ fontSize:12,fontWeight:700,color:W.accent,fontFamily:"monospace" }}>ADD CUSTOM MOVIE</div>
+            <div style={{ fontSize:9,color:W.dim,fontFamily:"monospace",background:W.card,border:`1px solid ${W.border}`,borderRadius:8,padding:8 }}>
+              🔒 Only visible in YOUR personal rankings.
+            </div>
+            <input value={customTitle} onChange={e => setCustomTitle(e.target.value)} placeholder="Movie title *"
+              style={{ background:W.card,border:`1px solid ${W.border}`,borderRadius:10,padding:"11px 14px",fontSize:11,color:W.text,fontFamily:"monospace",outline:"none",width:"100%",boxSizing:"border-box" }} />
+            {["Year","Director (optional)","Where did you watch it?"].map(f => (
+              <div key={f} style={{ background:W.card,border:`1px solid ${W.border}`,borderRadius:10,padding:"11px 14px",fontSize:11,color:W.dim,fontFamily:"monospace" }}>{f}</div>
+            ))}
+            <div style={{ display:"flex",flexWrap:"wrap",gap:5 }}>
+              {["Action","Comedy","Drama","Horror","Sci-Fi","Thriller","Romance","Doc","Int'l"].map(g => (
+                <span key={g} style={{ padding:"4px 10px",borderRadius:16,fontSize:9,fontFamily:"monospace",fontWeight:600,background:W.card,border:`1px solid ${W.border}`,color:W.dim,cursor:"pointer" }}>{g}</span>
+              ))}
+            </div>
+            <Btn accent full>SAVE TO MY RANKINGS</Btn>
+            <div style={{ textAlign:"center",fontSize:8,color:W.dim,fontFamily:"monospace" }}>Max 50 custom movies · Private only</div>
+          </div>
+        )}
+
+        {query.length <= 1 && !showCustomForm && (
+          <>
+            <div style={{ fontSize:10,color:W.dim,fontFamily:"monospace",letterSpacing:1,marginTop:8 }}>
+              {liveData ? "🔴 TRENDING ON TMDB" : "TRENDING"}
+            </div>
+            {FALLBACK_CATALOG.sort((a,b) => (a.trending_rank||99) - (b.trending_rank||99)).slice(0, 5).map(m => (
+              <div key={m.id} onClick={() => onSelectMovie(m)} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${W.border}`,cursor:"pointer" }}>
+                <span style={{ fontSize:11,color:W.dim }}>🔥</span>
+                <span style={{ fontSize:12,color:W.text,fontFamily:"monospace",flex:1 }}>{m.title}</span>
+                {m.is_international && <Badge color="purple">{m.original_language}</Badge>}
+                <span style={{ fontSize:10,color:W.dim }}>→</span>
+              </div>
+            ))}
+            <div style={{ fontSize:10,color:W.dim,fontFamily:"monospace",letterSpacing:1,marginTop:12 }}>BROWSE</div>
+            <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginTop:4 }}>
+              {["🎭 Drama","🚀 Sci-Fi","😱 Horror","😂 Comedy","💥 Action","🌏 International","🎬 Nolan","🏆 Oscars"].map(c => (
+                <span key={c} style={{ padding:"7px 14px",borderRadius:10,fontSize:10,fontFamily:"monospace",fontWeight:600,background:W.card,border:`1px solid ${W.border}`,color:W.dim,cursor:"pointer" }}>{c}</span>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <NavBar active="search" onNav={onNav} />
+    </div>
+  );
+};
+
+const ProfileScreen = ({ onNav, onSelectMovie }) => {
+  const [tab, setTab] = useState("rankings");
+  const [savedSet] = useState(new Set(USER.saved_movies));
+  const savedMovies = FALLBACK_CATALOG.filter(m => savedSet.has(m.id));
+  const allRankings = FALLBACK_CATALOG.sort((a, b) => (b.global_elo_score || 0) - (a.global_elo_score || 0));
+
+  return (
+    <div style={{ position:"relative",height:"100%" }}>
+      <div style={{ padding:"8px 22px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+        <span style={{ fontSize:13,fontWeight:800,color:W.text,fontFamily:"monospace" }}>MY PROFILE</span>
+        <span style={{ fontSize:14 }}>⚙</span>
+      </div>
+      <div style={{ padding:"0 22px",display:"flex",gap:14,alignItems:"center" }}>
+        <div style={{ width:54,height:54,borderRadius:"50%",background:W.card,border:`2px solid ${W.accent}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26 }}>👤</div>
+        <div>
+          <div style={{ fontSize:15,fontWeight:900,color:W.text,fontFamily:"monospace" }}>@{USER.username}</div>
+          <div style={{ display:"flex",gap:4,alignItems:"center",marginTop:2 }}>
+            <span style={{ fontSize:12 }}>🔥</span>
+            <span style={{ fontSize:10,fontWeight:700,color:W.gold,fontFamily:"monospace" }}>{USER.current_streak_weeks}-week streak</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ display:"flex",padding:"14px 22px" }}>
+        {[{n:USER.rated_count,l:"Rated"},{n:savedMovies.length,l:"Saved"},{n:USER.following,l:"Following"},{n:USER.followers,l:"Followers"}].map((s,i) => (
+          <div key={i} style={{ flex:1,textAlign:"center" }}>
+            <div style={{ fontSize:16,fontWeight:900,color:i===1?W.blue:W.text,fontFamily:"monospace" }}>{s.n}</div>
+            <div style={{ fontSize:9,color:W.dim,fontFamily:"monospace" }}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display:"flex",borderBottom:`1px solid ${W.border}`,margin:"0 22px" }}>
+        {["rankings","saved","reviews","notes"].map(t => (
+          <div key={t} onClick={() => setTab(t)} style={{ flex:1,textAlign:"center",padding:"8px 0",fontSize:10,fontFamily:"monospace",fontWeight:600,color:tab===t?W.accent:W.dim,borderBottom:`2px solid ${tab===t?W.accent:"transparent"}`,cursor:"pointer",textTransform:"capitalize" }}>{t}</div>
+        ))}
+      </div>
+      <div style={{ padding:"10px 22px 70px",display:"flex",flexDirection:"column",gap:5 }}>
+        {tab === "rankings" && <>
+          <div style={{ fontSize:9,color:W.dim,fontFamily:"monospace",letterSpacing:1 }}>YOUR PERSONAL RANKINGS · {allRankings.length} films</div>
+          {allRankings.slice(0, 6).map((m, i) => (
+            <div key={m.id} onClick={() => onSelectMovie(m)} style={{ display:"flex",alignItems:"center",gap:10,padding:"7px 10px",background:W.card,borderRadius:10,border:`1px solid ${W.border}`,cursor:"pointer" }}>
+              <span style={{ fontSize:11,fontWeight:900,color:W.accent,fontFamily:"monospace",width:18 }}>{i + 1}</span>
+              <Poster url={m.poster_url} w={28} h={38} radius={4} />
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ fontSize:11,color:W.text,fontFamily:"monospace",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{m.title}</div>
+                <div style={{ fontSize:8,color:W.dim,fontFamily:"monospace" }}>{m.release_year}</div>
+              </div>
+              <span style={{ fontSize:10,color:W.gold,fontFamily:"monospace" }}>★{m.avg_user_rating || "—"}</span>
+            </div>
+          ))}
+        </>}
+        {tab === "saved" && <>
+          <div style={{ fontSize:9,color:W.dim,fontFamily:"monospace",letterSpacing:1 }}>MOVIES TO WATCH · {savedMovies.length} saved</div>
+          {savedMovies.length === 0 ? (
+            <div style={{ textAlign:"center",padding:"20px 0" }}>
+              <div style={{ fontSize:24,marginBottom:6 }}>◇</div>
+              <div style={{ fontSize:11,color:W.dim,fontFamily:"monospace" }}>No saved movies yet</div>
+            </div>
+          ) : savedMovies.map(m => (
+            <div key={m.id} onClick={() => onSelectMovie(m)} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:W.card,borderRadius:10,border:`1px solid ${W.blue}22`,cursor:"pointer" }}>
+              <Poster url={m.poster_url} w={36} h={50} radius={6} />
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ fontSize:11,fontWeight:700,color:W.text,fontFamily:"monospace" }}>{m.title}</div>
+                <div style={{ fontSize:9,color:W.dim,fontFamily:"monospace" }}>{m.release_year} · {m.directors?.[0]?.name}</div>
+              </div>
+              <div style={{ textAlign:"center" }}>
+                <div style={{ fontSize:12,color:W.blue }}>◆</div>
+                <div style={{ fontSize:7,color:W.blue,fontFamily:"monospace" }}>SAVED</div>
+              </div>
+            </div>
+          ))}
+        </>}
+        {tab === "reviews" && <div style={{ textAlign:"center",padding:"20px 0" }}><div style={{ fontSize:11,color:W.dim,fontFamily:"monospace" }}>{USER.review_count} reviews written</div></div>}
+        {tab === "notes" && <div style={{ textAlign:"center",padding:"20px 0" }}><div style={{ fontSize:11,color:W.dim,fontFamily:"monospace" }}>Private notes on your films</div></div>}
+      </div>
+      <NavBar active="profile" onNav={onNav} />
+    </div>
+  );
+};
+
+const StreakScreen = ({ onNav }) => {
+  const weeks = Array.from({length:8}, (_,i) => ({
+    week: `W${i+1}`, done: i < 7, count: [5,7,4,6,3,8,2,1][i], current: i === 7
+  }));
+  return (
+    <div style={{ position:"relative",height:"100%" }}>
+      <div style={{ padding:"8px 22px 6px",fontSize:13,fontWeight:800,color:W.text,fontFamily:"monospace" }}>🔥 WEEKLY STREAK</div>
+      <div style={{ padding:"0 22px",display:"flex",flexDirection:"column",gap:12 }}>
+        <div style={{ textAlign:"center",padding:"16px 0 8px" }}>
+          <div style={{ fontSize:52,fontWeight:900,color:W.gold,fontFamily:"monospace",lineHeight:1,textShadow:`0 0 40px ${W.gold}33` }}>7</div>
+          <div style={{ fontSize:11,color:W.dim,fontFamily:"monospace",letterSpacing:2,marginTop:4 }}>WEEK STREAK</div>
+        </div>
+        <div style={{ display:"flex",gap:4,justifyContent:"center" }}>
+          {weeks.map((w,i) => (
+            <div key={i} style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:3,width:32 }}>
+              <div style={{ width:28,height:28,borderRadius:"50%",background:w.current?W.accentDim:w.done?W.goldDim:W.card,border:`2px solid ${w.current?W.accent:w.done?W.gold:W.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:w.done&&!w.current?12:10,color:w.current?W.accent:w.done?W.gold:W.dim,fontWeight:800,fontFamily:"monospace" }}>
+                {w.done&&!w.current?"✓":w.count}
+              </div>
+              <span style={{ fontSize:8,color:w.current?W.accent:W.dim,fontFamily:"monospace",fontWeight:w.current?700:400 }}>{w.week}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ background:W.card,border:`1px solid ${W.border}`,borderRadius:14,padding:14 }}>
+          <div style={{ fontSize:11,fontWeight:700,color:W.text,fontFamily:"monospace",marginBottom:8 }}>How Streaks Work</div>
+          {[["⭐","Rate 3+ movies per week"],["📝","1 review = 2 ratings"],["🔥","Resets Monday 12am"],["🏆","10 weeks → Gold Badge"],["💎","52 weeks → Diamond"]].map(([icon,text],i) => (
+            <div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"4px 0" }}>
+              <span style={{ fontSize:14 }}>{icon}</span>
+              <span style={{ fontSize:10,color:W.dim,fontFamily:"monospace" }}>{text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <NavBar active="streak" onNav={onNav} />
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════
+// API KEY INFO PANEL (shown outside the phone)
+// ═══════════════════════════════════════════════════
+
+const ApiKeyInfo = () => {
+  const live = hasApiKey();
+  return (
+    <div style={{ maxWidth:500,margin:"16px auto 0",fontFamily:"monospace",fontSize:11 }}>
+      <div style={{ background:"#1a1a22",border:`1px solid ${live ? "#10b98144" : "#f9731644"}`,borderRadius:12,padding:"14px 16px" }}>
+        <div style={{ display:"flex",gap:8,alignItems:"center",marginBottom:10 }}>
+          <div style={{ width:8,height:8,borderRadius:"50%",background:live?"#10b981":"#f97316",boxShadow:`0 0 8px ${live?"#10b981":"#f97316"}` }} />
+          <span style={{ fontWeight:800,color:live?"#10b981":"#f97316",letterSpacing:0.5 }}>
+            {live ? "TMDB API — LIVE DATA CONNECTED" : "TMDB API — DEMO MODE (sample data)"}
+          </span>
+        </div>
+        {!live && (
+          <div style={{ color:"#6e6e82",lineHeight:1.8 }}>
+            <div style={{ color:"#ededf2",fontWeight:700,marginBottom:6 }}>To enable live movie data:</div>
+            <div>1. Sign up free at <span style={{color:"#3b82f6"}}>themoviedb.org/signup</span></div>
+            <div>2. Go to <span style={{color:"#3b82f6"}}>Settings → API</span> → copy your <span style={{color:"#eab308"}}>Read Access Token</span></div>
+            <div>3. Create <span style={{color:"#ff3b3b"}}>.env.local</span> in the project root:</div>
+            <div style={{ background:"#0f0f13",border:"1px solid #2c2c3a",borderRadius:8,padding:"8px 10px",margin:"8px 0",color:"#10b981" }}>
+              VITE_TMDB_API_KEY=eyJhbGci...your_token_here
+            </div>
+            <div>4. Restart dev server — live data loads automatically</div>
+            <div style={{ marginTop:8,paddingTop:8,borderTop:"1px solid #2c2c3a",color:"#6e6e82" }}>
+              For Netlify: Site settings → Environment variables → Add <span style={{color:"#ff3b3b"}}>VITE_TMDB_API_KEY</span>
+            </div>
+            <div style={{ marginTop:4,color:"#6e6e82" }}>
+              TMDB API is <span style={{color:"#10b981",fontWeight:700}}>free</span> — 40 req/10s on read access token, no credit card required.
+            </div>
+          </div>
+        )}
+        {live && (
+          <div style={{ color:"#6e6e82",lineHeight:1.8,fontSize:10 }}>
+            <div>Trending this week · Upcoming releases · Full movie details</div>
+            <div>Cast photos · Trailers (YouTube) · Keywords · Box office</div>
+            <div style={{ marginTop:4,color:"#10b98188" }}>OMDb enrichment (IMDb ratings, RT scores) requires separate key → omdbapi.com</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════
+// APP SHELL
+// ═══════════════════════════════════════════════════
+
+export default function RatedDataDriven() {
+  const [screen, setScreen] = useState("home");
+  const [selectedMovie, setSelectedMovie] = useState(null);
+
+  const onNav = useCallback((s) => { setScreen(s); setSelectedMovie(null); }, []);
+  const onSelectMovie = useCallback((m) => { setSelectedMovie(m); setScreen("detail"); }, []);
+  const onBack = useCallback(() => { setScreen("home"); setSelectedMovie(null); }, []);
+
+  const screenMap = {
+    home: <HomeScreen onNav={onNav} onSelectMovie={onSelectMovie} />,
+    detail: <MovieDetailScreen movie={selectedMovie} onBack={onBack} />,
+    upcoming: <UpcomingScreen onNav={onNav} />,
+    search: <SearchScreen onNav={onNav} onSelectMovie={onSelectMovie} />,
+    profile: <ProfileScreen onNav={onNav} onSelectMovie={onSelectMovie} />,
+    streak: <StreakScreen onNav={onNav} />,
+  };
+
+  return (
+    <div style={{ minHeight:"100vh",background:"#08080b",padding:"20px 12px 40px",fontFamily:"system-ui" }}>
+      <div style={{ textAlign:"center",marginBottom:16 }}>
+        <h1 style={{ fontSize:26,fontWeight:900,color:W.accent,fontFamily:"monospace",letterSpacing:-1,margin:0,textShadow:`0 0 30px ${W.accent}33` }}>RATED</h1>
+        <p style={{ fontSize:9,color:W.dim,fontFamily:"monospace",margin:"4px 0 0",letterSpacing:3 }}>
+          {hasApiKey() ? "LIVE TMDB DATA · ENTITY → UI" : "DATA-DRIVEN PROTOTYPE · ENTITY → UI"}
+        </p>
+      </div>
+      <div style={{ display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center",marginBottom:20,maxWidth:500,margin:"0 auto 20px" }}>
+        {Object.entries({home:"Home",upcoming:"Upcoming",search:"Search",profile:"Profile",streak:"Streak"}).map(([k,v]) => (
+          <button key={k} onClick={() => onNav(k)} style={{ padding:"5px 11px",borderRadius:8,fontSize:9,fontFamily:"monospace",fontWeight:700,cursor:"pointer",border:`1px solid ${screen===k||(screen==="detail"&&k==="home")?W.accent:W.border}`,background:screen===k||(screen==="detail"&&k==="home")?W.accentDim:"transparent",color:screen===k||(screen==="detail"&&k==="home")?W.accent:W.dim }}>{v}</button>
+        ))}
+      </div>
+      <div style={{ display:"flex",justifyContent:"center" }}>
+        <Phone label={screen === "detail" ? selectedMovie?.title || "Detail" : screen}>
+          {screenMap[screen] || <HomeScreen onNav={onNav} onSelectMovie={onSelectMovie} />}
+        </Phone>
+      </div>
+      <ApiKeyInfo />
     </div>
   );
 }
