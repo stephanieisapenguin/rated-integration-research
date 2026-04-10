@@ -43,7 +43,7 @@ const Phone = ({ children, label }) => (
       <div style={{ height:44,display:"flex",alignItems:"flex-end",justifyContent:"space-between",padding:"0 24px 4px",fontSize:11,color:W.dim,fontFamily:"monospace" }}>
         <span style={{fontWeight:600}}>9:41</span><span>●●● ▐██▌</span>
       </div>
-      <div style={{ height:596,overflowY:"auto",overflowX:"hidden" }}>{children}</div>
+      <div style={{ height:596,display:"flex",flexDirection:"column",overflow:"hidden" }}>{children}</div>
     </div>
     <span style={{ fontSize:10,color:W.dim,fontFamily:"monospace",letterSpacing:1.5,textTransform:"uppercase",fontWeight:600 }}>{label}</span>
   </div>
@@ -60,7 +60,7 @@ const Btn = ({ children, accent, full, small, onClick }) => (
 );
 
 const NavBar = ({ active, onNav }) => (
-  <div style={{ position:"absolute",bottom:0,left:0,right:0,height:58,background:"#09090c",borderTop:`1px solid ${W.border}`,display:"flex",alignItems:"center",justifyContent:"space-around",zIndex:5 }}>
+  <div style={{ flexShrink:0,height:58,background:"#09090c",borderTop:`1px solid ${W.border}`,display:"flex",alignItems:"center",justifyContent:"space-around" }}>
     {[{key:"home",icon:"⌂",label:"Home"},{key:"upcoming",icon:"◈",label:"Soon"},{key:"search",icon:"⌕",label:"Search"},{key:"leaderboard",icon:"◆",label:"Board"},{key:"profile",icon:"●",label:"Me"}].map(item=>(
       <div key={item.key} onClick={()=>onNav(item.key)} style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:2,cursor:"pointer" }}>
         <span style={{ fontSize:18,color:item.key===active?W.accent:W.dim }}>{item.icon}</span>
@@ -117,15 +117,15 @@ const HomeScreen = ({ onNav, onSelectMovie }) => {
   const highlights=MOVIE_CATALOG.filter(m=>m.is_highlighted||m.trending_rank<=5).slice(0,4);
   if(!loaded) return <div style={{ height:"100%",display:"flex",alignItems:"center",justifyContent:"center" }}><LoadingDots/></div>;
   return (
-    <div style={{ position:"relative",height:"100%" }}>
-      <div style={{ padding:"6px 22px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+    <div style={{ display:"flex",flexDirection:"column",height:"100%" }}>
+      <div style={{ flexShrink:0,padding:"6px 22px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
         <div style={{ fontSize:18,fontWeight:900,color:W.accent,fontFamily:"monospace",letterSpacing:-1 }}>RATED</div>
         <div style={{ display:"flex",gap:3,alignItems:"center",background:W.goldDim,border:`1px solid ${W.gold}44`,borderRadius:20,padding:"3px 10px" }}>
           <span style={{ fontSize:12 }}>🔥</span>
           <span style={{ fontSize:10,fontWeight:800,color:W.gold,fontFamily:"monospace" }}>{USER.current_streak_weeks}</span>
         </div>
       </div>
-      <div style={{ padding:"10px 22px 70px",display:"flex",flexDirection:"column",gap:12 }}>
+      <div style={{ flex:1,overflowY:"auto",padding:"10px 22px",display:"flex",flexDirection:"column",gap:12 }}>
         <div style={{ fontSize:11,fontWeight:700,color:W.dim,fontFamily:"monospace",letterSpacing:1.5 }}>HIGHLIGHTS</div>
         <div style={{ display:"flex",gap:10,overflowX:"auto",paddingBottom:4 }}>
           {highlights.map(m=>(
@@ -255,15 +255,15 @@ const MovieDetailScreen = ({ movie, onBack, onRank }) => {
   const m=movie;
   const primaryTrailer=m.trailers?.find(t=>t.is_primary)||m.trailers?.[0];
   return (
-    <div style={{ position:"relative",height:"100%" }}>
+    <div style={{ position:"relative",display:"flex",flexDirection:"column",height:"100%" }}>
       {showReview&&<ReviewModal movie={m} onClose={()=>setShowReview(false)}/>}
-      <div style={{ position:"relative",height:180,background:`linear-gradient(180deg,#1a1a28,${W.bg})`,overflow:"hidden" }}>
+      <div style={{ flexShrink:0,position:"relative",height:180,background:`linear-gradient(180deg,#1a1a28,${W.bg})`,overflow:"hidden" }}>
         {m.backdrop_url&&<img src={m.backdrop_url} alt="" style={{ width:"100%",height:"100%",objectFit:"cover",opacity:0.3 }} onError={e=>{e.target.style.display="none"}}/>}
         <div style={{ position:"absolute",top:10,left:16,fontSize:11,color:W.dim,fontFamily:"monospace",cursor:"pointer" }} onClick={onBack}>← Back</div>
         {primaryTrailer&&<div style={{ position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:4 }}><div style={{ width:44,height:44,background:`${W.accent}cc`,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#fff" }}>▶</div><span style={{ fontSize:9,color:"#fff",fontFamily:"monospace",fontWeight:600 }}>PLAY TRAILER</span></div>}
         <div style={{ position:"absolute",bottom:-40,left:22 }}><Poster url={m.poster_url} w={72} h={100} radius={10}/></div>
       </div>
-      <div style={{ padding:"48px 22px 20px",display:"flex",flexDirection:"column",gap:8 }}>
+      <div style={{ flex:1,overflowY:"auto",padding:"48px 22px 20px",display:"flex",flexDirection:"column",gap:8 }}>
         <div>
           <div style={{ display:"flex",gap:6,alignItems:"center" }}>
             <span style={{ fontSize:18,fontWeight:900,color:W.text,fontFamily:"monospace",letterSpacing:-0.5 }}>{m.title}</span>
@@ -330,14 +330,16 @@ const MovieDetailScreen = ({ movie, onBack, onRank }) => {
 };
 
 const UpcomingScreen = ({ onNav }) => (
-  <div style={{ position:"relative",height:"100%" }}>
+  <div style={{ display:"flex",flexDirection:"column",height:"100%" }}>
+    <div style={{ flexShrink:0 }}>
     <div style={{ padding:"8px 22px 6px",fontSize:13,fontWeight:800,color:W.text,fontFamily:"monospace" }}>◈ UPCOMING · MUST SEE</div>
     <div style={{ display:"flex",gap:6,padding:"0 22px 8px" }}>
       {["All","Horror","Action","Drama"].map((t,i)=>(
         <span key={t} style={{ padding:"4px 12px",borderRadius:16,fontSize:9,fontFamily:"monospace",fontWeight:600,background:i===0?W.accentDim:W.card,border:`1px solid ${i===0?W.accent:W.border}`,color:i===0?W.accent:W.dim }}>{t}</span>
       ))}
     </div>
-    <div style={{ padding:"0 22px 70px",display:"flex",flexDirection:"column",gap:10 }}>
+    </div>
+    <div style={{ flex:1,overflowY:"auto",padding:"0 22px",display:"flex",flexDirection:"column",gap:10 }}>
       {[...UPCOMING_MOVIES].sort((a,b)=>a.days_until_release-b.days_until_release).map(u=>(
         <div key={u.id} style={{ background:W.card,border:`1px solid ${u.is_must_see?W.accent+"33":W.border}`,borderRadius:14,padding:14 }}>
           <div style={{ display:"flex",gap:12 }}>
@@ -372,14 +374,16 @@ const LeaderboardScreen = ({ onNav, onSelectMovie }) => {
   const GLOBAL=[{rank:1,user:"@cinephile99",avatar:"C",movies_rated:847,streak:34,badge:"💎"},{rank:2,user:"@filmfreak",avatar:"F",movies_rated:612,streak:21,badge:"🏆"},{rank:3,user:"@maya",avatar:"M",movies_rated:489,streak:12,badge:"🏆"},{rank:4,user:"@reeltalks",avatar:"R",movies_rated:356,streak:8,badge:"🔥"},{rank:5,user:"@jasonk",avatar:"J",movies_rated:89,streak:7,badge:"🔥",isYou:true},{rank:6,user:"@josh",avatar:"J",movies_rated:76,streak:4,badge:""},{rank:7,user:"@lina",avatar:"L",movies_rated:63,streak:3,badge:""},{rank:8,user:"@carlos",avatar:"C",movies_rated:41,streak:1,badge:""}];
   const FRIENDS=[{rank:1,title:"Interstellar",movie_id:"m-001",avg_rating:9.4,rated_by:["@maya","@josh","@lina"],rated_count:3},{rank:2,title:"Parasite",movie_id:"m-002",avg_rating:9.1,rated_by:["@maya","@carlos"],rated_count:2},{rank:3,title:"The Dark Knight",movie_id:"m-003",avg_rating:8.8,rated_by:["@josh","@lina","@carlos"],rated_count:3},{rank:4,title:"Whiplash",movie_id:"m-004",avg_rating:8.7,rated_by:["@maya"],rated_count:1},{rank:5,title:"RRR",movie_id:"m-005",avg_rating:8.4,rated_by:["@carlos","@lina"],rated_count:2}];
   return (
-    <div style={{ position:"relative",height:"100%" }}>
+    <div style={{ display:"flex",flexDirection:"column",height:"100%" }}>
+      <div style={{ flexShrink:0 }}>
       <div style={{ padding:"8px 22px 6px" }}><span style={{ fontSize:13,fontWeight:800,color:W.text,fontFamily:"monospace" }}>◆ LEADERBOARD</span></div>
       <div style={{ display:"flex",margin:"0 22px",borderBottom:`1px solid ${W.border}` }}>
         {[{key:"global",label:"Most Rated Users"},{key:"following",label:"Friends' Rankings"}].map(t=>(
           <div key={t.key} onClick={()=>setTab(t.key)} style={{ flex:1,textAlign:"center",padding:"8px 0",fontSize:10,fontFamily:"monospace",fontWeight:600,color:tab===t.key?W.accent:W.dim,borderBottom:`2px solid ${tab===t.key?W.accent:"transparent"}`,cursor:"pointer" }}>{t.label}</div>
         ))}
       </div>
-      <div style={{ padding:"10px 22px 70px",display:"flex",flexDirection:"column",gap:6 }}>
+      </div>
+      <div style={{ flex:1,overflowY:"auto",padding:"10px 22px",display:"flex",flexDirection:"column",gap:6 }}>
         {tab==="global"&&GLOBAL.map(u=>(
           <div key={u.rank} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:u.isYou?W.accentDim:u.rank<=3?`${W.gold}08`:W.card,borderRadius:10,border:`1px solid ${u.isYou?W.accent+"33":u.rank<=3?W.gold+"22":W.border}` }}>
             <span style={{ width:20,fontSize:u.rank<=3?14:11,fontWeight:900,color:W.dim,fontFamily:"monospace",textAlign:"center" }}>{u.rank<=3?["🥇","🥈","🥉"][u.rank-1]:u.rank}</span>
@@ -420,11 +424,11 @@ const SearchScreen = ({ onNav, onSelectMovie }) => {
   const results=query.length>1?MOVIE_CATALOG.filter(m=>m.title.toLowerCase().includes(query.toLowerCase())):[];
   const noResults=query.length>2&&results.length===0;
   return (
-    <div style={{ position:"relative",height:"100%" }}>
-      <div style={{ padding:"8px 22px 6px" }}>
+    <div style={{ display:"flex",flexDirection:"column",height:"100%" }}>
+      <div style={{ padding:"8px 22px 6px",flexShrink:0 }}>
         <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="⌕ Search movies, directors..." style={{ width:"100%",background:W.card,border:`1px solid ${W.border}`,borderRadius:12,padding:"11px 16px",fontSize:12,color:W.text,fontFamily:"monospace",outline:"none",boxSizing:"border-box" }}/>
       </div>
-      <div style={{ padding:"0 22px 70px" }}>
+      <div style={{ flex:1,overflowY:"auto",padding:"0 22px" }}>
         {results.map(m=>(
           <div key={m.id} onClick={()=>onSelectMovie(m)} style={{ display:"flex",gap:10,alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${W.border}`,cursor:"pointer" }}>
             <Poster url={m.poster_url} w={36} h={50} radius={6}/>
@@ -464,7 +468,8 @@ const ProfileScreen = ({ onNav, onSelectMovie, rankedIds, eloScores }) => {
   const savedMovies=MOVIE_CATALOG.filter(m=>USER.saved_movies.includes(m.id));
   const allRankings=rankedIds.map(id=>{const c=MOVIE_CATALOG.find(m=>m.id===id);return c?{...c,movie_type:"catalog"}:null;}).filter(Boolean);
   return (
-    <div style={{ position:"relative",height:"100%" }}>
+    <div style={{ display:"flex",flexDirection:"column",height:"100%" }}>
+      <div style={{ flexShrink:0 }}>
       <div style={{ padding:"8px 22px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
         <span style={{ fontSize:13,fontWeight:800,color:W.text,fontFamily:"monospace" }}>MY PROFILE</span>
         <span style={{ fontSize:14 }}>⚙</span>
@@ -489,7 +494,8 @@ const ProfileScreen = ({ onNav, onSelectMovie, rankedIds, eloScores }) => {
           <div key={t} onClick={()=>setTab(t)} style={{ flex:1,textAlign:"center",padding:"8px 0",fontSize:10,fontFamily:"monospace",fontWeight:600,color:tab===t?W.accent:W.dim,borderBottom:`2px solid ${tab===t?W.accent:"transparent"}`,cursor:"pointer",textTransform:"capitalize" }}>{t}</div>
         ))}
       </div>
-      <div style={{ padding:"10px 22px 70px",display:"flex",flexDirection:"column",gap:5 }}>
+      </div>
+      <div style={{ flex:1,overflowY:"auto",padding:"10px 22px",display:"flex",flexDirection:"column",gap:5 }}>
         {tab==="rankings"&&<>
           <div style={{ fontSize:9,color:W.dim,fontFamily:"monospace",letterSpacing:1 }}>YOUR PERSONAL RANKINGS · {allRankings.length} films</div>
           {allRankings.length===0&&<div style={{ textAlign:"center",padding:"24px 0" }}><div style={{ fontSize:28,marginBottom:6 }}>🎬</div><div style={{ fontSize:12,fontWeight:700,color:W.text,fontFamily:"monospace" }}>No rankings yet</div><div style={{ fontSize:10,color:W.dim,fontFamily:"monospace",marginTop:4,lineHeight:1.5 }}>Tap ⚡ RANK on any movie to add it</div></div>}
@@ -602,12 +608,12 @@ const RankScreen = ({ newMovie, rankedIds, eloScores, onComplete, onCancel, allM
   const other=result?allMovies.find(m=>m.id===result.otherId):null;
 
   return (
-    <div style={{ position:"relative",height:"100%" }}>
-      <div style={{ padding:"8px 22px 6px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+    <div style={{ display:"flex",flexDirection:"column",height:"100%" }}>
+      <div style={{ flexShrink:0,padding:"8px 22px 6px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
         <span style={{ fontSize:13,fontWeight:800,color:W.text,fontFamily:"monospace" }}>⚡ RANK IT</span>
         <div onClick={onCancel} style={{ fontSize:11,color:W.dim,fontFamily:"monospace",cursor:"pointer" }}>✕ Cancel</div>
       </div>
-      <div style={{ padding:"0 22px",display:"flex",flexDirection:"column",gap:10 }}>
+      <div style={{ flex:1,overflowY:"auto",padding:"0 22px",display:"flex",flexDirection:"column",gap:10 }}>
         <div style={{ background:`linear-gradient(135deg,${W.accent}10,${W.accent}04)`,border:`1px solid ${W.accent}33`,borderRadius:14,padding:"10px 14px",display:"flex",gap:12,alignItems:"center" }}>
           <Poster url={newMovie.poster_url} w={40} h={56} radius={6}/>
           <div>
