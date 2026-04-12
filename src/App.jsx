@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { fetchTrending, fetchUpcoming, searchMovies, hasApiKey } from "./api/tmdb";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p";
 
@@ -105,7 +106,7 @@ const LoginScreen = ({ onLogin }) => (
   </div>
 );
 
-const HomeScreen = ({ onNav, onSelectMovie }) => {
+const HomeScreen = ({ onNav, onSelectMovie, movies }) => {
   const [loaded,setLoaded]=useState(false);
   const [feedLikes,setFeedLikes]=useState({});
   const [following,setFollowing]=useState(()=>{const m={};FRIEND_USERS.forEach(u=>{m[u.id]=u.is_following;});return m;});
@@ -114,7 +115,7 @@ const HomeScreen = ({ onNav, onSelectMovie }) => {
   const toggleLike=(id)=>setFeedLikes(p=>({...p,[id]:!p[id]}));
   const toggleFollow=(id)=>setFollowing(p=>({...p,[id]:!p[id]}));
   const toggleSave=(id)=>setSavedMovies(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
-  const highlights=MOVIE_CATALOG.filter(m=>m.is_highlighted||m.trending_rank<=5).slice(0,4);
+  const highlights=movies.filter(m=>m.is_highlighted||m.trending_rank<=5).slice(0,4);
   if(!loaded) return <div style={{ height:"100%",display:"flex",alignItems:"center",justifyContent:"center" }}><LoadingDots/></div>;
   return (
     <div style={{ display:"flex",flexDirection:"column",height:"100%" }}>
@@ -191,7 +192,7 @@ const HomeScreen = ({ onNav, onSelectMovie }) => {
         {savedMovies.size>0&&<>
           <div style={{ fontSize:11,fontWeight:700,color:W.dim,fontFamily:"monospace",letterSpacing:1.5 }}>YOUR SAVED · {savedMovies.size} FILMS</div>
           <div style={{ display:"flex",gap:8,overflowX:"auto" }}>
-            {MOVIE_CATALOG.filter(m=>savedMovies.has(m.id)).map(m=>(
+            {movies.filter(m=>savedMovies.has(m.id)).map(m=>(
               <div key={m.id} style={{ flexShrink:0,cursor:"pointer",position:"relative" }} onClick={()=>onSelectMovie(m)}>
                 <Poster url={m.poster_url} w={60} h={84} radius={8}/>
                 <div style={{ position:"absolute",top:3,right:3,width:14,height:14,background:W.blue,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#fff" }}>◆</div>
@@ -329,7 +330,7 @@ const MovieDetailScreen = ({ movie, onBack, onRank }) => {
   );
 };
 
-const UpcomingScreen = ({ onNav }) => (
+const UpcomingScreen = ({ onNav, upcoming }) => (
   <div style={{ display:"flex",flexDirection:"column",height:"100%" }}>
     <div style={{ flexShrink:0 }}>
     <div style={{ padding:"8px 22px 6px",fontSize:13,fontWeight:800,color:W.text,fontFamily:"monospace" }}>◈ UPCOMING · MUST SEE</div>
@@ -340,7 +341,7 @@ const UpcomingScreen = ({ onNav }) => (
     </div>
     </div>
     <div style={{ flex:1,overflowY:"auto",padding:"0 22px",display:"flex",flexDirection:"column",gap:10 }}>
-      {[...UPCOMING_MOVIES].sort((a,b)=>a.days_until_release-b.days_until_release).map(u=>(
+      {[...upcoming].sort((a,b)=>a.days_until_release-b.days_until_release).map(u=>(
         <div key={u.id} style={{ background:W.card,border:`1px solid ${u.is_must_see?W.accent+"33":W.border}`,borderRadius:14,padding:14 }}>
           <div style={{ display:"flex",gap:12 }}>
             <Poster url={u.poster_url} w={56} h={78} radius={8}/>
@@ -369,7 +370,7 @@ const UpcomingScreen = ({ onNav }) => (
   </div>
 );
 
-const LeaderboardScreen = ({ onNav, onSelectMovie }) => {
+const LeaderboardScreen = ({ onNav, onSelectMovie, movies }) => {
   const [tab,setTab]=useState("global");
   const GLOBAL=[{rank:1,user:"@cinephile99",avatar:"C",movies_rated:847,streak:34,badge:"💎"},{rank:2,user:"@filmfreak",avatar:"F",movies_rated:612,streak:21,badge:"🏆"},{rank:3,user:"@maya",avatar:"M",movies_rated:489,streak:12,badge:"🏆"},{rank:4,user:"@reeltalks",avatar:"R",movies_rated:356,streak:8,badge:"🔥"},{rank:5,user:"@jasonk",avatar:"J",movies_rated:89,streak:7,badge:"🔥",isYou:true},{rank:6,user:"@josh",avatar:"J",movies_rated:76,streak:4,badge:""},{rank:7,user:"@lina",avatar:"L",movies_rated:63,streak:3,badge:""},{rank:8,user:"@carlos",avatar:"C",movies_rated:41,streak:1,badge:""}];
   const FRIENDS=[{rank:1,title:"Interstellar",movie_id:"m-001",avg_rating:9.4,rated_by:["@maya","@josh","@lina"],rated_count:3},{rank:2,title:"Parasite",movie_id:"m-002",avg_rating:9.1,rated_by:["@maya","@carlos"],rated_count:2},{rank:3,title:"The Dark Knight",movie_id:"m-003",avg_rating:8.8,rated_by:["@josh","@lina","@carlos"],rated_count:3},{rank:4,title:"Whiplash",movie_id:"m-004",avg_rating:8.7,rated_by:["@maya"],rated_count:1},{rank:5,title:"RRR",movie_id:"m-005",avg_rating:8.4,rated_by:["@carlos","@lina"],rated_count:2}];
@@ -400,7 +401,7 @@ const LeaderboardScreen = ({ onNav, onSelectMovie }) => {
           </div>
         ))}
         {tab==="following"&&FRIENDS.map(m=>{
-          const movie=MOVIE_CATALOG.find(c=>c.id===m.movie_id);
+          const movie=movies.find(c=>c.id===m.movie_id);
           return (
             <div key={m.rank} onClick={()=>movie&&onSelectMovie(movie)} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:m.rank<=3?`${W.accent}08`:W.card,borderRadius:10,border:`1px solid ${m.rank<=3?W.accent+"22":W.border}`,cursor:movie?"pointer":"default" }}>
               <span style={{ width:20,fontSize:m.rank<=3?14:11,fontWeight:900,color:W.dim,fontFamily:"monospace",textAlign:"center" }}>{m.rank<=3?["🥇","🥈","🥉"][m.rank-1]:m.rank}</span>
@@ -419,9 +420,21 @@ const LeaderboardScreen = ({ onNav, onSelectMovie }) => {
   );
 };
 
-const SearchScreen = ({ onNav, onSelectMovie }) => {
+const SearchScreen = ({ onNav, onSelectMovie, movies }) => {
   const [query,setQuery]=useState("");
-  const results=query.length>1?MOVIE_CATALOG.filter(m=>m.title.toLowerCase().includes(query.toLowerCase())):[];
+  const [remoteByQuery,setRemoteByQuery]=useState({});
+  useEffect(()=>{
+    if(!hasApiKey()||query.length<=1) return;
+    let cancelled=false;
+    const t=setTimeout(async()=>{
+      const r=await searchMovies(query);
+      if(!cancelled) setRemoteByQuery(p=>({...p,[query]:r||[]}));
+    },250);
+    return()=>{cancelled=true;clearTimeout(t);};
+  },[query]);
+  const localResults=query.length>1?movies.filter(m=>m.title.toLowerCase().includes(query.toLowerCase())):[];
+  const remoteResults=query.length>1?remoteByQuery[query]:null;
+  const results=remoteResults&&remoteResults.length>0?remoteResults:localResults;
   const noResults=query.length>2&&results.length===0;
   return (
     <div style={{ display:"flex",flexDirection:"column",height:"100%" }}>
@@ -442,7 +455,7 @@ const SearchScreen = ({ onNav, onSelectMovie }) => {
         {noResults&&<div style={{ textAlign:"center",padding:"24px 0" }}><div style={{ fontSize:24,marginBottom:8 }}>🔍</div><div style={{ fontSize:12,fontWeight:700,color:W.text,fontFamily:"monospace" }}>No results for "{query}"</div></div>}
         {query.length<=1&&<>
           <div style={{ fontSize:10,color:W.dim,fontFamily:"monospace",letterSpacing:1,marginTop:8 }}>TRENDING</div>
-          {[...MOVIE_CATALOG].sort((a,b)=>(a.trending_rank||99)-(b.trending_rank||99)).slice(0,5).map(m=>(
+          {[...movies].sort((a,b)=>(a.trending_rank||99)-(b.trending_rank||99)).slice(0,5).map(m=>(
             <div key={m.id} onClick={()=>onSelectMovie(m)} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${W.border}`,cursor:"pointer" }}>
               <span style={{ fontSize:11,color:W.dim }}>🔥</span>
               <span style={{ fontSize:12,color:W.text,fontFamily:"monospace",flex:1 }}>{m.title}</span>
@@ -463,10 +476,10 @@ const SearchScreen = ({ onNav, onSelectMovie }) => {
   );
 };
 
-const ProfileScreen = ({ onNav, onSelectMovie, rankedIds, eloScores }) => {
+const ProfileScreen = ({ onNav, onSelectMovie, rankedIds, eloScores, movies }) => {
   const [tab,setTab]=useState("rankings");
-  const savedMovies=MOVIE_CATALOG.filter(m=>USER.saved_movies.includes(m.id));
-  const allRankings=rankedIds.map(id=>{const c=MOVIE_CATALOG.find(m=>m.id===id);return c?{...c,movie_type:"catalog"}:null;}).filter(Boolean);
+  const savedMovies=movies.filter(m=>USER.saved_movies.includes(m.id));
+  const allRankings=rankedIds.map(id=>{const c=movies.find(m=>m.id===id);return c?{...c,movie_type:"catalog"}:null;}).filter(Boolean);
   return (
     <div style={{ display:"flex",flexDirection:"column",height:"100%" }}>
       <div style={{ flexShrink:0 }}>
@@ -680,6 +693,26 @@ export default function RatedApp() {
   const [rankMovie,setRankMovie]=useState(null);
   const [rankedIds,setRankedIds]=useState([]);
   const [eloScores,setEloScores]=useState({});
+  const [movies,setMovies]=useState(MOVIE_CATALOG);
+  const [upcoming,setUpcoming]=useState(UPCOMING_MOVIES);
+  const [serviceStatus,setServiceStatus]=useState(hasApiKey()?"loading":"fallback");
+
+  useEffect(()=>{
+    if(!hasApiKey()) return;
+    let cancelled=false;
+    (async()=>{
+      const [trending,up]=await Promise.all([fetchTrending(),fetchUpcoming()]);
+      if(cancelled) return;
+      if(trending&&trending.length>0){
+        setMovies([...trending,...MOVIE_CATALOG]);
+      }
+      if(up&&up.length>0){
+        setUpcoming(up);
+      }
+      setServiceStatus(trending||up?"live":"fallback");
+    })();
+    return()=>{cancelled=true;};
+  },[]);
 
   const onNav=useCallback((s)=>{setScreen(s);setSelectedMovie(null);setRankMovie(null);},[]);
   const onSelectMovie=useCallback((m)=>{setSelectedMovie(m);setScreen("detail");},[]);
@@ -700,17 +733,17 @@ export default function RatedApp() {
 
   const renderScreen=()=>{
     if(currentScreen==="login") return <LoginScreen onLogin={onLogin}/>;
-    if(currentScreen==="home") return <HomeScreen onNav={onNav} onSelectMovie={onSelectMovie}/>;
+    if(currentScreen==="home") return <HomeScreen onNav={onNav} onSelectMovie={onSelectMovie} movies={movies}/>;
     if(currentScreen==="detail") return <MovieDetailScreen movie={selectedMovie} onBack={onBackToHome} onRank={onRank}/>;
-    if(currentScreen==="upcoming") return <UpcomingScreen onNav={onNav}/>;
-    if(currentScreen==="leaderboard") return <LeaderboardScreen onNav={onNav} onSelectMovie={onSelectMovie}/>;
-    if(currentScreen==="search") return <SearchScreen onNav={onNav} onSelectMovie={onSelectMovie}/>;
-    if(currentScreen==="profile") return <ProfileScreen onNav={onNav} onSelectMovie={onSelectMovie} rankedIds={rankedIds} eloScores={eloScores}/>;
+    if(currentScreen==="upcoming") return <UpcomingScreen onNav={onNav} upcoming={upcoming}/>;
+    if(currentScreen==="leaderboard") return <LeaderboardScreen onNav={onNav} onSelectMovie={onSelectMovie} movies={movies}/>;
+    if(currentScreen==="search") return <SearchScreen onNav={onNav} onSelectMovie={onSelectMovie} movies={movies}/>;
+    if(currentScreen==="profile") return <ProfileScreen onNav={onNav} onSelectMovie={onSelectMovie} rankedIds={rankedIds} eloScores={eloScores} movies={movies}/>;
     if(currentScreen==="rank"&&rankMovie){
       if(rankedIds.includes(rankMovie.id)) return <div style={{ height:"100%",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8 }}><div style={{ fontSize:24 }}>✓</div><div style={{ fontSize:11,color:W.green,fontFamily:"monospace" }}>Already ranked!</div><div onClick={onRankCancel} style={{ marginTop:12,fontSize:10,color:W.dim,fontFamily:"monospace",cursor:"pointer" }}>← Go back</div></div>;
-      return <RankScreen newMovie={rankMovie} rankedIds={rankedIds} eloScores={eloScores} onComplete={onRankComplete} onCancel={onRankCancel} allMovies={MOVIE_CATALOG}/>;
+      return <RankScreen newMovie={rankMovie} rankedIds={rankedIds} eloScores={eloScores} onComplete={onRankComplete} onCancel={onRankCancel} allMovies={movies}/>;
     }
-    return <HomeScreen onNav={onNav} onSelectMovie={onSelectMovie}/>;
+    return <HomeScreen onNav={onNav} onSelectMovie={onSelectMovie} movies={movies}/>;
   };
 
   return (
@@ -718,6 +751,12 @@ export default function RatedApp() {
       <div style={{ textAlign:"center",marginBottom:16 }}>
         <h1 style={{ fontSize:26,fontWeight:900,color:W.accent,fontFamily:"monospace",letterSpacing:-1,margin:0,textShadow:`0 0 30px ${W.accent}33` }}>RATED</h1>
         <p style={{ fontSize:9,color:W.dim,fontFamily:"monospace",margin:"4px 0 0",letterSpacing:3 }}>DATA-DRIVEN PROTOTYPE · ENTITY → UI</p>
+        <div style={{ display:"inline-flex",alignItems:"center",gap:6,marginTop:8,padding:"4px 10px",borderRadius:20,border:`1px solid ${serviceStatus==="live"?W.green+"66":serviceStatus==="loading"?W.gold+"66":W.border}`,background:serviceStatus==="live"?W.greenDim:serviceStatus==="loading"?W.goldDim:W.card }}>
+          <span style={{ width:6,height:6,borderRadius:"50%",background:serviceStatus==="live"?W.green:serviceStatus==="loading"?W.gold:W.dim,boxShadow:serviceStatus==="live"?`0 0 8px ${W.green}`:"none" }}/>
+          <span style={{ fontSize:8,fontFamily:"monospace",letterSpacing:1.5,fontWeight:700,color:serviceStatus==="live"?W.green:serviceStatus==="loading"?W.gold:W.dim }}>
+            TMDB SERVICE · {serviceStatus==="live"?`LIVE · ${movies.length} FILMS`:serviceStatus==="loading"?"FETCHING…":"FALLBACK (NO API KEY)"}
+          </span>
+        </div>
       </div>
       <div style={{ display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center",maxWidth:560,margin:"0 auto 20px" }}>
         {Object.entries({login:"Login",home:"Home",upcoming:"Upcoming",search:"Search",leaderboard:"Board",profile:"Profile"}).map(([k,v])=>(
