@@ -2,10 +2,9 @@ name: PR Preview
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write
   pull-requests: write
 
 concurrency:
@@ -13,8 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
-    if: github.event.action != 'closed'
+  deploy-preview:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,12 +30,17 @@ jobs:
         env:
           VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
 
-      - name: Deploy to GitHub Pages preview
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Deploy to Netlify
+        id: netlify
+        uses: nwtgck/actions-netlify@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          destination_dir: pr-${{ github.event.pull_request.number }}
+          publish-dir: ./dist
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: "PR #${{ github.event.pull_request.number }} — ${{ github.event.pull_request.head.sha }}"
+          alias: pr-${{ github.event.pull_request.number }}
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
       - name: Post preview URL
         uses: actions/github-script@v7
@@ -46,8 +49,8 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const prNumber = context.issue.number;
-            const previewUrl = `https://${owner}.github.io/${repo}/pr-${prNumber}/`;
-            const sha = context.sha.substring(0, 7);
+            const previewUrl = '${{ steps.netlify.outputs.deploy-url }}';
+            const sha = '${{ github.event.pull_request.head.sha }}'.substring(0, 7);
 
             const body = `### Preview Deployment\n\n` +
               `| | |\n|---|---|\n` +
@@ -56,7 +59,6 @@ jobs:
               `| **Status** | Deployed |\n\n` +
               `> Static preview only — no backend. TMDB data loads if \`VITE_TMDB_API_KEY\` is set in repo secrets.`;
 
-            // Update existing comment or create new one
             const { data: comments } = await github.rest.issues.listComments({
               owner, repo, issue_number: prNumber,
             });
@@ -73,20 +75,3 @@ jobs:
                 owner, repo, issue_number: prNumber, body,
               });
             }
-
-  cleanup:
-    runs-on: ubuntu-latest
-    if: github.event.action == 'closed'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-
-      - name: Remove preview directory
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          rm -rf pr-${{ github.event.pull_request.number }}
-          git add -A
-          git commit -m "Clean up preview for PR #${{ github.event.pull_request.number }}" || true
-          git push
