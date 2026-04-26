@@ -22,11 +22,11 @@ from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
 
 from db import get_db, init_db, SessionLocal
-from models import MovieRow, RankingRow, UserRow
+from models import FollowRow, MovieRow, RankingRow, ReviewRow, UserRow
 from rated_backend import App, Movie
 
 
@@ -151,8 +151,20 @@ def root(db: Session = Depends(get_db)):
 # /movies/top must come before /movies/{movie_id} so "top" isn't matched as id.
 
 @app.get("/movies")
-def list_movies(db: Session = Depends(get_db)):
-    return [m.to_dict() for m in db.execute(select(MovieRow)).scalars()]
+def list_movies(
+    q: Optional[str] = None,
+    genre: Optional[str] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    """List movies. Optional ?q=<title-substring> and ?genre=<exact-match>."""
+    stmt = select(MovieRow)
+    if q:
+        stmt = stmt.where(func.lower(MovieRow.title).like(f"%{q.lower()}%"))
+    if genre:
+        stmt = stmt.where(func.lower(MovieRow.genre) == genre.lower())
+    stmt = stmt.order_by(MovieRow.title).limit(limit)
+    return [m.to_dict() for m in db.execute(stmt).scalars()]
 
 
 @app.get("/movies/top")
@@ -181,6 +193,46 @@ def get_movie_reviews(movie_id: str, db: Session = Depends(get_db)):
         d["display_name"] = author.name if author else None
         out.append(d)
     return out
+
+
+@app.get("/movies/{movie_id}/stats")
+def get_movie_stats(movie_id: str, db: Session = Depends(get_db)):
+    """Aggregate counts + average for a single movie. Used by the frontend's
+    movie-detail screen — it was already calling this endpoint, just nothing
+    was answering."""
+    if not db.get(MovieRow, movie_id):
+        raise HTTPException(status_code=404, detail=f"Movie {movie_id} not found")
+    avg = db.execute(
+        select(func.avg(RankingRow.score)).where(RankingRow.movie_id == movie_id)
+    ).scalar()
+    ranking_count = db.execute(
+        select(func.count()).select_from(RankingRow)
+        .where(RankingRow.movie_id == movie_id)
+    ).scalar() or 0
+    review_count = db.execute(
+        select(func.count()).select_from(ReviewRow)
+        .where(ReviewRow.movie_id == movie_id)
+    ).scalar() or 0
+    return {
+        "movie_id": movie_id,
+        "avg_score": round(float(avg), 2) if avg is not None else 0.0,
+        "ranking_count": ranking_count,
+        "review_count": review_count,
+    }
+
+
+@app.get("/movies/{movie_id}/rankings")
+def list_movie_rankings(movie_id: str, limit: int = 50, db: Session = Depends(get_db)):
+    """All rankings for a movie, highest score first then most recent."""
+    if not db.get(MovieRow, movie_id):
+        raise HTTPException(status_code=404, detail=f"Movie {movie_id} not found")
+    rows = db.execute(
+        select(RankingRow)
+        .where(RankingRow.movie_id == movie_id)
+        .order_by(RankingRow.score.desc(), RankingRow.ranked_at.desc())
+        .limit(limit)
+    ).scalars()
+    return [r.to_dict() for r in rows]
 
 
 # ─── Auth ────────────────────────────────────────────────────────────────────
@@ -234,6 +286,54 @@ def claim_username(
 
 
 # ─── Users ───────────────────────────────────────────────────────────────────
+
+@app.get("/users")
+def list_users(
+    q: Optional[str] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+):
+    """List users for discovery. Optional ?q=<substring> matches both
+    username (case-insensitive) and display name."""
+    stmt = select(UserRow)
+    if q:
+        like = f"%{q.lower()}%"
+        stmt = stmt.where(or_(
+            func.lower(UserRow.username).like(like),
+            func.lower(UserRow.name).like(like),
+        ))
+    stmt = stmt.order_by(UserRow.created_at).limit(limit)
+    return [u.to_dict() for u in db.execute(stmt).scalars()]
+
+
+def _list_follow_edge(db: Session, user_id: str, *, side: str) -> list[dict]:
+    """Shared helper for /followers and /following.
+    side='followers' → users following user_id.
+    side='following' → users user_id is following."""
+    if not db.get(UserRow, user_id):
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+    if side == "followers":
+        join_col, where_col = FollowRow.follower_id, FollowRow.followee_id
+    else:
+        join_col, where_col = FollowRow.followee_id, FollowRow.follower_id
+    rows = db.execute(
+        select(UserRow)
+        .join(FollowRow, join_col == UserRow.user_id)
+        .where(where_col == user_id)
+        .order_by(FollowRow.created_at.desc())
+    ).scalars()
+    return [u.to_dict() for u in rows]
+
+
+@app.get("/users/{user_id}/followers")
+def list_followers(user_id: str, db: Session = Depends(get_db)):
+    return _list_follow_edge(db, user_id, side="followers")
+
+
+@app.get("/users/{user_id}/following")
+def list_following(user_id: str, db: Session = Depends(get_db)):
+    return _list_follow_edge(db, user_id, side="following")
+
 
 @app.get("/users/{user_id}")
 def get_user(user_id: str, db: Session = Depends(get_db)):
