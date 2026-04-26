@@ -167,6 +167,89 @@ def test_review_validation(client):
         assert r.status_code == 400, f"{body!r} should fail validation"
 
 
+# ─── List endpoints ──────────────────────────────────────────────────────────
+
+
+def test_list_users_default_returns_seeded(client):
+    users = client.get("/users").json()
+    assert len(users) == 8
+    assert {u["username"] for u in users} >= {"cinephile99", "filmfreak", "maya"}
+
+
+def test_list_users_search_by_username(client):
+    users = client.get("/users", params={"q": "cine"}).json()
+    assert len(users) == 1
+    assert users[0]["username"] == "cinephile99"
+
+
+def test_list_users_search_by_name(client):
+    users = client.get("/users", params={"q": "freak"}).json()
+    assert len(users) == 1 and users[0]["name"] == "Film Freak"
+
+
+def test_list_users_limit(client):
+    users = client.get("/users", params={"limit": 3}).json()
+    assert len(users) == 3
+
+
+def test_list_movies_search(client):
+    r = client.get("/movies", params={"q": "stell"}).json()
+    assert len(r) == 1 and r[0]["movie_id"] == "m-001"
+
+
+def test_list_movies_genre_filter(client):
+    r = client.get("/movies", params={"genre": "Action"}).json()
+    titles = {m["title"] for m in r}
+    assert titles == {"The Dark Knight", "RRR"}
+
+
+def test_movie_stats(client):
+    # Seeded m-001 rankings: cinephile99(9), filmfreak(9), maya(9),
+    # jasonk(10), lina(8), carlos(7) → avg 8.67, count 6.
+    s = client.get("/movies/m-001/stats").json()
+    assert s["movie_id"] == "m-001"
+    assert s["ranking_count"] == 6
+    assert s["avg_score"] == 8.67
+    assert s["review_count"] == 0
+
+
+def test_movie_stats_404(client):
+    assert client.get("/movies/m-XXX/stats").status_code == 404
+
+
+def test_movie_rankings_listing(client):
+    rows = client.get("/movies/m-002/rankings").json()
+    # Seeded m-002: cinephile99(10), filmfreak(8), reeltalks(10),
+    # maya(9), josh(8), lina(9) → 6 rankings.
+    assert len(rows) == 6
+    # Sorted by score desc — first must be a 10
+    assert rows[0]["score"] == 10
+    assert all(r["movie"]["movie_id"] == "m-002" for r in rows)
+
+
+def test_followers_and_following_lists(client):
+    me = _login(client, sub="me", name="Me", email="me@x.com")
+    cine = client.get("/users/by-username/cinephile99").json()
+    client.post(f"/users/{me}/follow", json={"followee_id": cine["user_id"]})
+
+    following = client.get(f"/users/{me}/following").json()
+    assert len(following) == 1
+    assert following[0]["username"] == "cinephile99"
+
+    followers = client.get(f"/users/{cine['user_id']}/followers").json()
+    assert len(followers) == 1
+    assert followers[0]["user_id"] == me
+
+    # me has no followers; cine follows nobody.
+    assert client.get(f"/users/{me}/followers").json() == []
+    assert client.get(f"/users/{cine['user_id']}/following").json() == []
+
+
+def test_followers_404_for_unknown_user(client):
+    assert client.get("/users/no-such-user/followers").status_code == 404
+    assert client.get("/users/no-such-user/following").status_code == 404
+
+
 def test_persistence_across_restart(tmp_path, monkeypatch):
     """Mutate, drop the FastAPI process, create a new TestClient pointed at
     the same SQLite file → data is still there."""
