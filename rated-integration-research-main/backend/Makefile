@@ -14,7 +14,9 @@ UVICORN := $(VENV)/bin/uvicorn
 PORT   ?= 8000
 HOST   ?= 0.0.0.0
 
-.PHONY: help install dev run test lint format typecheck clean freeze
+DB_FILE ?= rated.db
+
+.PHONY: help install dev run test lint format typecheck clean freeze db-reset db-shell
 
 help:
 	@echo "Targets:"
@@ -25,6 +27,8 @@ help:
 	@echo "  lint      Run ruff"
 	@echo "  format    Run ruff format + black"
 	@echo "  typecheck Run mypy"
+	@echo "  db-reset  Delete the SQLite file (next start re-seeds fixtures)"
+	@echo "  db-shell  Open sqlite3 REPL on the dev DB"
 	@echo "  clean     Remove venv, caches, build artifacts"
 	@echo "  freeze    Write current pip freeze to requirements.lock"
 
@@ -36,7 +40,7 @@ install: $(VENV)/bin/activate
 	$(PIP) install -r requirements.txt
 
 dev: install
-	$(UVICORN) api:app --reload --host $(HOST) --port $(PORT)
+	$(UVICORN) api:app --reload --reload-dir . --reload-exclude .venv --reload-exclude '*.db' --reload-exclude '*.db-journal' --host $(HOST) --port $(PORT)
 
 run: install
 	$(UVICORN) api:app --host $(HOST) --port $(PORT)
@@ -60,6 +64,13 @@ typecheck: install
 
 freeze:
 	$(PIP) freeze > requirements.lock
+
+db-reset:
+	rm -f $(DB_FILE)
+	@echo "Removed $(DB_FILE) — next 'make dev' will re-seed fixtures."
+
+db-shell:
+	sqlite3 $(DB_FILE)
 
 clean:
 	rm -rf $(VENV) .pytest_cache .ruff_cache .mypy_cache __pycache__ */__pycache__

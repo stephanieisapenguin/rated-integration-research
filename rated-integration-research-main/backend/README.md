@@ -1,9 +1,16 @@
-# Backend (FastAPI)
+# Backend (FastAPI + SQLAlchemy)
 
-In-memory FastAPI service for the Rated app. Two files:
+FastAPI service for the Rated app. Storage: SQLAlchemy → SQLite locally
+(`rated.db`), Postgres in production (set `DATABASE_URL`).
 
-- `rated_backend.py` — pure-Python domain layer (models, in-memory DBs, services). No HTTP.
-- `api.py` — FastAPI HTTP wrapper. Imports `App` and `Movie` from `rated_backend`.
+Files:
+
+- `api.py` — FastAPI routes. Each handler injects a session via `Depends(get_db)`.
+- `rated_backend.py` — service layer (AuthService, RankingService, …). Each
+  method takes a `Session` and returns ORM rows.
+- `models.py` — SQLAlchemy ORM models (`UserRow`, `MovieRow`, `RankingRow`, …).
+- `db.py` — engine, sessionmaker, `get_db` FastAPI dependency, `init_db` for
+  schema creation.
 
 ## Local development
 
@@ -29,6 +36,8 @@ OpenAPI docs auto-served at `http://localhost:8000/docs`.
 | `format`     | `ruff check --fix .` + `black .` |
 | `typecheck`  | `mypy .` |
 | `freeze`     | `pip freeze > requirements.lock` |
+| `db-reset`   | `rm -f rated.db` (next start re-seeds fixtures) |
+| `db-shell`   | Open `sqlite3` REPL on the dev DB |
 | `clean`      | Remove venv + caches |
 
 Override defaults: `make dev PORT=8001 HOST=127.0.0.1`.
@@ -76,21 +85,27 @@ Alternative hosts that work the same way: Railway, Fly.io, Heroku.
 
 ### Hooking up Netlify DB (Neon Postgres)
 
-When ready to move off the in-memory store:
+The data layer is already SQLAlchemy. Swapping SQLite → Postgres is one env var:
 
-1. In Netlify → Extensions → enable "Neon" (this provisions Netlify DB).
-2. Netlify exposes `NETLIFY_DATABASE_URL` to the frontend build env. Copy that
-   value into Render's `DATABASE_URL` env var (the backend reads it from there).
-3. Replace `UserDB`, `MovieDB`, etc. in `rated_backend.py` with SQLAlchemy
-   models against `DATABASE_URL`. (Not yet wired — see `.env.example`.)
+1. Netlify → Extensions → enable "Neon" (provisions Netlify DB).
+2. Copy the connection string from Netlify → Site settings → Environment.
+3. In Render (or whatever host) → Environment → set
+   `DATABASE_URL=postgresql+psycopg://user:pass@host/dbname` (note `+psycopg`
+   driver prefix). Append `psycopg[binary]==3.x` to `requirements.txt`.
+4. Restart. `init_db()` calls `Base.metadata.create_all()` which creates the
+   schema in Postgres on first boot. No code change.
+
+For schema migrations (production), add Alembic when the model stops changing
+shape weekly.
 
 ## Production gaps (TODO)
 
 - **Auth**: replace stub with real Google JWT verification (`google-auth` lib),
   then layer on Netlify Identity / OIDC if we want Netlify-managed sessions.
-- **Storage**: in-memory → Postgres (SQLAlchemy + Alembic).
+- **Schema migrations**: SQLAlchemy creates tables but there's no Alembic yet.
+  Add it before the model schema starts changing in production.
 - **CORS**: currently `["*"]`; switch to `ALLOWED_ORIGINS` env var.
 - **Session tokens**: currently `sha256(user_id + timestamp)`; switch to
-  `secrets.token_urlsafe(32)` stored in DB with expiry.
+  `secrets.token_urlsafe(32)` stored in a sessions table with expiry.
 - **Logging / observability**: no logging today. Add `structlog` + Sentry.
 - **Rate limiting**: none. Add `slowapi` for login + write endpoints.

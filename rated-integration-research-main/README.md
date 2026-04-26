@@ -12,10 +12,13 @@ rated-integration-research-main/
 │   └── Wireframe.jsx        ← static design reference
 ├── public/
 │   └── _redirects           ← SPA fallback for Netlify
-├── backend/                Backend (FastAPI, Python 3.11+)
-│   ├── api.py               ← HTTP routes
-│   ├── rated_backend.py     ← domain layer (in-memory DBs, services)
-│   ├── Makefile             ← install / dev / run / test / lint
+├── backend/                Backend (FastAPI, Python 3.9+)
+│   ├── api.py               ← HTTP routes (Depends(get_db) per request)
+│   ├── rated_backend.py     ← service layer (auth, rankings, feed, …)
+│   ├── models.py            ← SQLAlchemy ORM models
+│   ├── db.py                ← engine + sessionmaker + get_db dep
+│   ├── rated.db             ← SQLite file (gitignored, persists across restarts)
+│   ├── Makefile             ← install / dev / run / db-reset / lint
 │   └── README.md            ← backend-specific docs
 ├── netlify.toml            Netlify build + redirects
 ├── package.json            Frontend deps + scripts
@@ -94,7 +97,7 @@ Copy `.env.example` → `.env.local` (frontend) and `backend/.env.example` →
 | `VITE_TMDB_API_KEY`   | frontend  | TMDB v3 key (optional; falls back to mock) |
 | `PORT`                | backend   | uvicorn port (default 8000)              |
 | `ALLOWED_ORIGINS`     | backend   | CORS allowlist                           |
-| `DATABASE_URL`        | backend   | Postgres URL (Netlify DB / Neon) — unused until we move off in-memory store |
+| `DATABASE_URL`        | backend   | Postgres URL (Netlify DB / Neon). Default: `sqlite:///./rated.db` |
 | `GOOGLE_CLIENT_ID`    | backend   | For real Google JWT verification         |
 
 ## Deploying
@@ -133,9 +136,12 @@ front of the site for gated previews.
 - [x] Backend runs locally (`make dev`)
 - [x] Env vars wired (no more hardcoded URLs)
 - [x] Netlify config + SPA redirects
+- [x] **SQLAlchemy + SQLite storage** — frontend mutations round-trip through
+      the API and persist to `backend/rated.db` across restarts
+- [x] **DATABASE_URL ready** — swap SQLite for Netlify DB / Neon Postgres by
+      setting one env var; no code change
 - [ ] Backend host picked + deployed
-- [ ] Real auth (Google JWT verification)
-- [ ] Postgres-backed storage (replace in-memory `App()`)
+- [ ] Real auth (Google JWT verification — currently stub)
 - [ ] `App.jsx` split into per-screen components (it's 5,200+ lines today)
 - [ ] CI on push (lint + build)
 

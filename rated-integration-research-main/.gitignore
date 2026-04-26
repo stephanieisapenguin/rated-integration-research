@@ -26,3 +26,14 @@ dist-ssr
 # Local Netlify folder
 .netlify
 .env.local
+
+# Backend
+backend/.venv/
+backend/.env
+backend/*.db
+backend/*.db-journal
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/.mypy_cache/
