@@ -73,7 +73,7 @@ The frontend (on Netlify) calls it via `VITE_API_BASE_URL`.
 1. Push this repo to GitHub.
 2. In Render → New → Web Service → connect this repo.
 3. Set:
-   - **Root Directory**: `rated-integration-research-main/backend`
+   - **Root Directory**: `build/backend`
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `uvicorn api:app --host 0.0.0.0 --port $PORT`
    - **Environment**: copy keys from `.env.example`

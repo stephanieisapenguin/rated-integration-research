@@ -10,12 +10,12 @@ Two terminals. Backend first, then frontend.
 
 ```bash
 # Terminal 1 — backend on http://localhost:8000
-cd rated-integration-research-main/backend
+cd build/backend
 make install        # one-time: creates .venv, installs FastAPI + SQLAlchemy
 make dev            # uvicorn with --reload
 
 # Terminal 2 — frontend on http://localhost:5173
-cd rated-integration-research-main
+cd build
 npm install         # one-time
 npm run dev         # Vite dev server with HMR
 ```
@@ -27,12 +27,12 @@ the API into `backend/rated.db` and survives restarts.
 Verify the round-trip:
 
 ```bash
-sqlite3 rated-integration-research-main/backend/rated.db \
+sqlite3 build/backend/rated.db \
   "SELECT username, COUNT(*) AS rankings FROM users LEFT JOIN rankings
    ON users.user_id=rankings.user_id GROUP BY username;"
 
 # or use the Make shortcuts
-cd rated-integration-research-main/backend
+cd build/backend
 make db-shell       # interactive sqlite3 REPL
 make db-reset       # rm rated.db (next start re-seeds 5 movies + 8 mock users)
 make test           # 26 pytest smoke tests
@@ -44,7 +44,7 @@ Prereqs: Node 20+, Python 3.9+, `make`. macOS users with `nvm`:
 ## Repo layout
 
 ```
-rated-integration-research-main/
+build/
 ├── src/                    Frontend (React 19, Vite 8)
 │   ├── App.jsx              ← main app, all screens
 │   ├── main.jsx             ← React entry
@@ -174,7 +174,7 @@ See `backend/README.md` for the full list. Most-used:
 Frontend (Vite produces a static bundle for Netlify):
 
 ```bash
-cd rated-integration-research-main
+cd build
 npm install              # if not already installed
 npm run build            # writes to dist/
 npm run preview          # optional: serve dist/ at :4173 to sanity-check
@@ -195,7 +195,7 @@ manual build is only for local sanity-checking before pushing.
 Backend (no build step — Python is interpreted; `make install` *is* the build):
 
 ```bash
-cd rated-integration-research-main/backend
+cd build/backend
 make install             # creates .venv, installs from requirements.txt
 make run                 # uvicorn api:app on :8000 (production mode)
 make test                # 26 pytest cases — gate before deploying
@@ -232,7 +232,7 @@ Copy `.env.example` → `.env.local` (frontend) and `backend/.env.example` →
 
 1. Connect the GitHub repo in Netlify → "Add new site → Import from Git".
 2. Build settings (auto-detected from `netlify.toml`):
-   - Base directory: `rated-integration-research-main`
+   - Base directory: `build`
    - Build command: `npm run build`
    - Publish directory: `dist`
 3. Site settings → Environment variables: set `VITE_API_BASE_URL` and

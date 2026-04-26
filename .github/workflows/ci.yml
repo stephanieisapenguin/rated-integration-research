@@ -12,7 +12,7 @@ concurrency:
 
 defaults:
   run:
-    working-directory: rated-integration-research-main
+    working-directory: build
 
 jobs:
   frontend:
@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: rated-integration-research-main/package-lock.json
+          cache-dependency-path: build/package-lock.json
       - run: npm ci
       # Lint is non-blocking until App.jsx is split into per-screen components
       # (the 5,200-line monolith trips a bunch of react-hooks/static-components
@@ -35,14 +35,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: rated-integration-research-main/backend
+        working-directory: build/backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: pip
-          cache-dependency-path: rated-integration-research-main/backend/requirements.txt
+          cache-dependency-path: build/backend/requirements.txt
       - run: pip install -r requirements.txt
       - run: pip install pytest httpx ruff
       - name: Lint
